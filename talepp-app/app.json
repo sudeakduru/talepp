@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Talepp",
+    "slug": "talepp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FFC6EC",
+    "ios": {
+      "bundleIdentifier": "com.talepp.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Taleplerine görsel eklemek için galerine erişim gerekiyor."
+        }
+      ]
+    ]
+  }
+}

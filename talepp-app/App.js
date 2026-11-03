@@ -1,0 +1,1300 @@
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View, Text, TextInput, Pressable, ScrollView, StyleSheet, Animated, Easing,
+  Image, Modal, Share, Alert, KeyboardAvoidingView, Platform, Dimensions,
+} from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
+import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFonts, Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black } from '@expo-google-fonts/unbounded';
+
+// ─────────────────────────────────────────────────────────────
+// Sabitler
+// ─────────────────────────────────────────────────────────────
+const STORE_KEY = 'talepp:v1';
+
+const F = { med: 'Unbounded_500Medium', bold: 'Unbounded_700Bold', black: 'Unbounded_900Black' };
+
+const C = {
+  ink: '#2B0F45',
+  inkSoft: '#6E5487',
+  white: '#FFFFFF',
+  hot: '#FF2EA6',
+  violet: '#B14DFF',
+  butter: '#FFF3A3',
+  mint: '#9DFFD5',
+};
+
+const HOLO = ['#FF2EA6', '#B14DFF', '#3D8BFF'];
+const HOT = ['#FF2EA6', '#B14DFF', '#5B8CFF'];
+const CHROME = ['#FFFFFF', '#FFD6F2', '#D9C9FF', '#BDEFFF'];
+
+const THEMES = {
+  bubblegum: { name: 'Bubblegum', colors: ['#FFB5E8', '#E7C6FF', '#B5DEFF'] },
+  cyber: { name: 'Siber Lila', colors: ['#C9A7FF', '#9FE8FF', '#C4FFEA'] },
+  peach: { name: 'Şeftali', colors: ['#FFD1B5', '#FFB5D8', '#FFF0A8'] },
+  aqua: { name: 'Buz Prenses', colors: ['#B5FFF1', '#B5D8FF', '#E2C6FF'] },
+};
+
+const EMOJIS = ['💖', '🦋', '🍒', '👑', '🌙', '🧸', '🔥', '🫧', '🍓', '💅', '🐱', '🌸'];
+
+const PRESET_CATS = [
+  { e: '💅', t: 'Bakım' }, { e: '🍕', t: 'Yemek' }, { e: '🎁', t: 'Hediye' },
+  { e: '✈️', t: 'Gezi' }, { e: '🎬', t: 'Film Gecesi' }, { e: '💐', t: 'Sürpriz' },
+  { e: '🛍️', t: 'Alışveriş' }, { e: '🫶', t: 'İlgi & Sevgi' }, { e: '☕', t: 'Kahve' },
+  { e: '🧹', t: 'Ev İşi' },
+];
+
+const URGENCY = [
+  { k: 'chill', t: 'chill 🧊' },
+  { k: 'onemli', t: 'önemli ✨' },
+  { k: 'acil', t: 'ACİL 🚨' },
+];
+
+const REJECT_REASONS = [
+  'bugün değil bebeğim 💅', 'bütçe onaylanmadı 💸', 'önce bulaşıklar 🧽',
+  'bunu dün de istedin 👀', 'sistem şu an kapalı 🔌', 'sevgimle reddediyorum 💔',
+];
+
+// Ücretsiz plan: sadece hattı kurduğun ilk gün 1 talep. Fiyatlar şimdilik yer tutucu.
+const PLANS = [
+  { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: 'ilk gün 1 talep', limit: 1 },
+  { k: 'p5', t: 'Talepp+ 5', short: 'PLUS 5', desc: 'günde 5 talep', price: '₺49,99', limit: 5 },
+  { k: 'p10', t: 'Talepp+ 10', short: 'PLUS 10', desc: 'günde 10 talep', price: '₺79,99', limit: 10, badge: 'en popüler 🔥' },
+  { k: 'inf', t: 'Talepp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: '₺129,99', limit: Infinity, badge: 'kraliçe modu 👑' },
+];
+const PAID = PLANS.filter(p => p.k !== 'free');
+
+const STATUS = {
+  pending: { t: 'BEKLEMEDE', e: '⏳', bg: '#FFF3A3' },
+  approved: { t: 'ONAYLANDI', e: '💖', bg: '#9DFFD5' },
+  rejected: { t: 'REDDEDİLDİ', e: '💔', bg: '#FFB3C7' },
+  nego: { t: 'PAZARLIKTA', e: '🤝', bg: '#C9E6FF' },
+  appeal: { t: 'İTİRAZDA', e: '⚖️', bg: '#E2C6FF' },
+};
+const OPEN = ['pending', 'nego', 'appeal'];
+
+const HIST = {
+  created: '🚀 talebi fırlattı',
+  approved: '💖 onayladı',
+  rejected: '💔 reddetti',
+  nego: '🤝 karşı teklif verdi',
+  accepted: '✅ teklifi kabul etti',
+  appeal: '⚖️ itiraz etti',
+};
+
+const AV_COLORS = [
+  ['#FF5FC8', '#B14DFF'], ['#5B8CFF', '#8FE3FF'], ['#FF8A5B', '#FFD25B'],
+  ['#2BD9A0', '#8FE3FF'], ['#B14DFF', '#FF5FC8'],
+];
+
+const CONFETTI = ['💖', '✦', '🎉', '💅', '🦋', '⭐', '🫧', '👑'];
+
+// ─────────────────────────────────────────────────────────────
+// Yardımcılar
+// ─────────────────────────────────────────────────────────────
+const todayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return 'şimdi';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} dk önce`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} sa önce`;
+  return `${Math.floor(h / 24)} gün önce`;
+}
+
+const TR_MAP = { ç: 'C', Ç: 'C', ğ: 'G', Ğ: 'G', ı: 'I', İ: 'I', i: 'I', ö: 'O', Ö: 'O', ş: 'S', Ş: 'S', ü: 'U', Ü: 'U' };
+function makeCode(name) {
+  const base = name.split('').map(ch => TR_MAP[ch] || ch.toUpperCase()).join('').replace(/[^A-Z]/g, '').slice(0, 4);
+  return `${(base || 'TLPP').padEnd(4, 'X')}-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+// toUpperCase Türkçe i/ı'yı bilmiyor
+const trUpper = s => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toUpperCase();
+const initial = name => trUpper((name || '?').trim()[0] || '?');
+
+const planOf = k => PLANS.find(p => p.k === k) || PLANS[0];
+const dailyLimit = m => (m.plan === 'free' ? (m.joinedDay === todayKey() ? 1 : 0) : planOf(m.plan).limit);
+const sentToday = (requests, id) => requests.filter(r => r.from === id && r.day === todayKey()).length;
+
+const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+const success = () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+
+// ─────────────────────────────────────────────────────────────
+// Görsel yapı taşları
+// ─────────────────────────────────────────────────────────────
+const SPARKS = [
+  { x: '7%', y: '9%', s: 18, d: 0 }, { x: '84%', y: '6%', s: 26, d: 600 },
+  { x: '72%', y: '36%', s: 14, d: 1200 }, { x: '10%', y: '52%', s: 22, d: 300 },
+  { x: '88%', y: '68%', s: 16, d: 900 }, { x: '38%', y: '90%', s: 20, d: 1500 },
+];
+
+function Sparkle({ x, y, s, d }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const l = Animated.loop(Animated.sequence([
+      Animated.delay(d),
+      Animated.timing(a, { toValue: 1, duration: 900, useNativeDriver: true }),
+      Animated.timing(a, { toValue: 0, duration: 900, useNativeDriver: true }),
+    ]));
+    l.start();
+    return () => l.stop();
+  }, []);
+  return (
+    <Animated.Text
+      style={{
+        position: 'absolute', left: x, top: y, fontSize: s, color: '#fff', opacity: a, pointerEvents: 'none',
+        textShadowColor: 'rgba(255,255,255,0.95)', textShadowRadius: 10,
+        transform: [
+          { scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1.2] }) },
+          { rotate: a.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) },
+        ],
+      }}
+    >✦</Animated.Text>
+  );
+}
+
+// Yavaşça renk değiştiren holografik arka plan
+function HoloBg({ colors, children }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const l = Animated.loop(Animated.sequence([
+      Animated.timing(t, { toValue: 1, duration: 4000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(t, { toValue: 0, duration: 4000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]));
+    l.start();
+    return () => l.stop();
+  }, []);
+  return (
+    <View style={{ flex: 1, backgroundColor: colors[0] }}>
+      <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: t }]}>
+        <LinearGradient colors={[...colors].reverse()} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
+      </Animated.View>
+      <View style={styles.sheen} />
+      {SPARKS.map((p, i) => <Sparkle key={i} {...p} />)}
+      {children}
+    </View>
+  );
+}
+
+// Gradyan dolgulu, beyaz gölgeli "sticker" yazı
+function HoloText({ children, style }) {
+  return (
+    <View>
+      <Text style={[style, styles.holoShadow]}>{children}</Text>
+      <MaskedView maskElement={<Text style={[style, { backgroundColor: 'transparent' }]}>{children}</Text>}>
+        <LinearGradient colors={HOLO} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+          <Text style={[style, { opacity: 0 }]}>{children}</Text>
+        </LinearGradient>
+      </MaskedView>
+    </View>
+  );
+}
+
+function ChromeButton({ title, onPress, hot, big, small, disabled, style }) {
+  const sc = useRef(new Animated.Value(1)).current;
+  return (
+    <Pressable
+      style={style}
+      onPress={() => { if (disabled) return; tap(); onPress && onPress(); }}
+      onPressIn={() => Animated.spring(sc, { toValue: 0.94, useNativeDriver: true, speed: 40 }).start()}
+      onPressOut={() => Animated.spring(sc, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 12 }).start()}
+    >
+      <Animated.View style={[hot ? styles.btnShadowHot : styles.btnShadow, { transform: [{ scale: sc }], opacity: disabled ? 0.45 : 1 }]}>
+        <LinearGradient
+          colors={hot ? HOT : CHROME}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={[styles.btn, big && styles.btnBig, small && styles.btnSmall]}
+        >
+          <View style={styles.btnShine} />
+          <Text style={[styles.btnText, big && styles.btnTextBig, small && styles.btnTextSmall, { color: hot ? '#fff' : C.ink }]}>
+            {title}
+          </Text>
+        </LinearGradient>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+const Glass = ({ style, children }) => <View style={[styles.glass, style]}>{children}</View>;
+
+function Sticker({ text, bg = '#fff', rotate = '-4deg', small, style }) {
+  return (
+    <View style={[styles.sticker, small && styles.stickerSmall, { backgroundColor: bg, transform: [{ rotate }] }, style]}>
+      <Text style={[styles.stickerTxt, small && { fontSize: 8 }]}>{text}</Text>
+    </View>
+  );
+}
+
+function Chip({ label, on, onPress, style }) {
+  return (
+    <Pressable onPress={() => { tap(); onPress(); }} style={[styles.chip, on && styles.chipOn, style]}>
+      <Text style={[styles.chipTxt, on && styles.chipTxtOn]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function Avatar({ name, index, size = 40, active }) {
+  return (
+    <LinearGradient
+      colors={AV_COLORS[index % AV_COLORS.length]}
+      style={{
+        width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center',
+        borderWidth: active ? 3 : 2, borderColor: active ? C.ink : '#fff',
+      }}
+    >
+      <Text style={{ fontFamily: F.black, color: '#fff', fontSize: size * 0.38 }}>{initial(name)}</Text>
+    </LinearGradient>
+  );
+}
+
+const Label = ({ children, style }) => <Text style={[styles.label, style]}>{children}</Text>;
+
+function Confetti({ burst }) {
+  const [pieces, setPieces] = useState([]);
+  useEffect(() => {
+    if (!burst) return;
+    const { width: W, height: H } = Dimensions.get('window');
+    const ps = Array.from({ length: 30 }, (_, i) => ({
+      id: `${burst}-${i}`,
+      x: Math.random() * (W - 30),
+      e: CONFETTI[i % CONFETTI.length],
+      v: new Animated.Value(0),
+      dur: 1400 + Math.random() * 1300,
+      rot: `${Math.round(Math.random() * 720 - 360)}deg`,
+      size: 16 + Math.random() * 18,
+      H,
+    }));
+    setPieces(ps);
+    Animated.parallel(ps.map(p => Animated.timing(p.v, {
+      toValue: 1, duration: p.dur, easing: Easing.out(Easing.quad), useNativeDriver: true,
+    }))).start(() => setPieces([]));
+  }, [burst]);
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {pieces.map(p => (
+        <Animated.Text
+          key={p.id}
+          style={{
+            position: 'absolute', left: p.x, top: 0, fontSize: p.size, color: C.hot,
+            opacity: p.v.interpolate({ inputRange: [0, 0.8, 1], outputRange: [1, 1, 0] }),
+            transform: [
+              { translateY: p.v.interpolate({ inputRange: [0, 1], outputRange: [-60, p.H + 40] }) },
+              { rotate: p.v.interpolate({ inputRange: [0, 1], outputRange: ['0deg', p.rot] }) },
+            ],
+          }}
+        >{p.e}</Animated.Text>
+      ))}
+    </View>
+  );
+}
+
+function Sheet({ visible, onClose, colors, children }) {
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <HoloBg colors={colors}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.sheetTop}>
+            <View style={styles.grabber} />
+            <Pressable onPress={onClose} hitSlop={14} style={styles.closeBtn}>
+              <Text style={styles.closeTxt}>✕</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {children}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </HoloBg>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Karşılama + hat kurulumu (3 kısa adım)
+// ─────────────────────────────────────────────────────────────
+function FloatCard({ e, t, st, rot, delay, style }) {
+  const a = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const l = Animated.loop(Animated.sequence([
+      Animated.timing(a, { toValue: 1, duration: 1800, delay, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(a, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    l.start();
+    return () => l.stop();
+  }, []);
+  const s = STATUS[st];
+  return (
+    <Animated.View style={[styles.float, style, { transform: [{ rotate: rot }, { translateY: a.interpolate({ inputRange: [0, 1], outputRange: [0, -12] }) }] }]}>
+      <Text style={{ fontSize: 28 }}>{e}</Text>
+      <View style={{ marginLeft: 10 }}>
+        <Text style={styles.floatTitle}>{t}</Text>
+        <Sticker text={`${s.e} ${s.t}`} bg={s.bg} rotate="0deg" small style={{ marginTop: 5 }} />
+      </View>
+    </Animated.View>
+  );
+}
+
+function StepShell({ step, colors, title, sub, onBack, onNext, nextTitle, canNext, children }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <HoloBg colors={colors}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={{ paddingTop: insets.top + 14, paddingHorizontal: 22, paddingBottom: insets.bottom + 24, flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.stepTop}>
+            <Pressable onPress={onBack} hitSlop={12}><Text style={styles.back}>← geri</Text></Pressable>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {[1, 2, 3].map(i => <View key={i} style={[styles.dot, i <= step && styles.dotOn]} />)}
+            </View>
+          </View>
+          <Text style={styles.stepNo}>adım {step}/3</Text>
+          <Text style={styles.stepTitle}>{title}</Text>
+          {sub ? <Text style={styles.stepSub}>{sub}</Text> : null}
+          <View style={{ marginTop: 22, flex: 1 }}>{children}</View>
+          <ChromeButton hot big title={nextTitle} onPress={onNext} disabled={!canNext} style={{ marginTop: 26 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </HoloBg>
+  );
+}
+
+function Onboarding({ onDone }) {
+  const insets = useSafeAreaInsets();
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState('');
+  const [emoji, setEmoji] = useState('💖');
+  const [theme, setTheme] = useState('bubblegum');
+  const [cats, setCats] = useState(PRESET_CATS.map((c, i) => ({ ...c, on: i < 6 })));
+  const [custom, setCustom] = useState('');
+  const [me, setMe] = useState('');
+  const [friend, setFriend] = useState('');
+  const [friends, setFriends] = useState([]);
+  const colors = THEMES[theme].colors;
+
+  const addCustom = () => {
+    const t = custom.trim();
+    if (!t) return;
+    setCats(cs => [...cs, { e: '✨', t, on: true }]);
+    setCustom('');
+    tap();
+  };
+  const addFriend = () => {
+    const t = friend.trim();
+    if (!t) return;
+    setFriends(f => [...f, t]);
+    setFriend('');
+    tap();
+  };
+  const finish = () => {
+    const all = [...friends, ...(friend.trim() ? [friend.trim()] : [])];
+    const lineName = name.trim() || 'Talep Hattım';
+    const day = todayKey();
+    const meM = { id: uid(), name: me.trim() || 'Ben', plan: 'free', joinedDay: day };
+    const members = [meM, ...all.map(n => ({ id: uid(), name: n, plan: 'free', joinedDay: day }))];
+    const chosen = cats.filter(c => c.on).map(({ e, t }) => ({ id: uid(), e, t }));
+    success();
+    onDone({
+      line: { name: lineName, emoji, theme, cats: chosen.length ? chosen : [{ id: uid(), e: '✨', t: 'Genel' }], code: makeCode(lineName) },
+      members,
+      meId: meM.id,
+      viewerId: meM.id,
+      requests: [],
+    });
+  };
+
+  if (step === 0) {
+    return (
+      <HoloBg colors={colors}>
+        <View style={{ flex: 1, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 22, paddingHorizontal: 24, justifyContent: 'space-between' }}>
+          <View style={{ alignItems: 'center' }}>
+            <Sticker text="✦ yeni nesil talep hattı ✦" rotate="-3deg" />
+            <HoloText style={styles.logo}>Talepp</HoloText>
+            <Text style={styles.tagline}>sevgilin & kankaların için{'\n'}kendi talep hattını kur 💅</Text>
+          </View>
+          <View style={{ height: 250 }}>
+            <FloatCard e="💅" t="nail randevusu" st="approved" rot="-6deg" delay={0} style={{ left: 0, top: 0 }} />
+            <FloatCard e="🍕" t="gece 2'de pizza" st="nego" rot="5deg" delay={500} style={{ right: 0, top: 84 }} />
+            <FloatCard e="✈️" t="hafta sonu kaçamağı" st="pending" rot="-3deg" delay={1000} style={{ left: 14, top: 168 }} />
+          </View>
+          <View>
+            <ChromeButton hot big title="hattımı kur ✦" onPress={() => setStep(1)} />
+            <Text style={styles.gift}>🎁 ilk gün 1 talep bizden</Text>
+          </View>
+        </View>
+      </HoloBg>
+    );
+  }
+
+  if (step === 1) {
+    return (
+      <StepShell step={1} colors={colors} title="hattına bir isim ver ✦" sub="mesela: Susu Talep Hattı, Kızlar Meclisi, Aşk Bakanlığı 🏛️"
+        onBack={() => setStep(0)} onNext={() => setStep(2)} nextTitle="devam →" canNext>
+        <TextInput
+          value={name} onChangeText={setName} placeholder="Susu Talep Hattı" placeholderTextColor="#B79BCB"
+          style={styles.input} maxLength={32} returnKeyType="next" onSubmitEditing={() => setStep(2)}
+        />
+        <Label style={{ marginTop: 22 }}>hattının emojisi</Label>
+        <View style={styles.wrap}>
+          {EMOJIS.map(e => (
+            <Pressable key={e} onPress={() => { tap(); setEmoji(e); }} style={[styles.emojiBox, emoji === e && styles.emojiBoxOn]}>
+              <Text style={{ fontSize: 26 }}>{e}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Glass style={styles.preview}>
+          <Text style={{ fontSize: 36 }}>{emoji}</Text>
+          <View style={{ marginLeft: 12, flex: 1 }}>
+            <Text style={styles.kicker}>önizleme</Text>
+            <Text style={styles.previewName} numberOfLines={2}>{name.trim() || 'Susu Talep Hattı'}</Text>
+          </View>
+        </Glass>
+      </StepShell>
+    );
+  }
+
+  if (step === 2) {
+    return (
+      <StepShell step={2} colors={colors} title="vibe'ını seç 🎨" sub="renkler ve talep başlıkların. sonra da değiştirebilirsin."
+        onBack={() => setStep(1)} onNext={() => setStep(3)} nextTitle="devam →" canNext={cats.some(c => c.on)}>
+        <View style={styles.themeRow}>
+          {Object.entries(THEMES).map(([k, th]) => (
+            <Pressable key={k} onPress={() => { tap(); setTheme(k); }} style={{ alignItems: 'center', flex: 1 }}>
+              <LinearGradient colors={th.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.swatch, theme === k && styles.swatchOn]}>
+                {theme === k ? <Text style={{ fontSize: 20 }}>✦</Text> : null}
+              </LinearGradient>
+              <Text style={styles.swatchTxt}>{th.name}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Label style={{ marginTop: 24 }}>talep başlıkları</Label>
+        <View style={styles.wrap}>
+          {cats.map((c, i) => (
+            <Chip key={`${c.t}-${i}`} label={`${c.e} ${c.t}`} on={c.on}
+              onPress={() => setCats(cs => cs.map((x, j) => (j === i ? { ...x, on: !x.on } : x)))} />
+          ))}
+        </View>
+        <View style={styles.addRow}>
+          <TextInput
+            value={custom} onChangeText={setCustom} placeholder="kendi başlığın (örn. Boba 🧋)" placeholderTextColor="#B79BCB"
+            style={[styles.input, { flex: 1 }]} maxLength={24} onSubmitEditing={addCustom} returnKeyType="done"
+          />
+          <ChromeButton title="+" onPress={addCustom} style={{ marginLeft: 10 }} />
+        </View>
+      </StepShell>
+    );
+  }
+
+  return (
+    <StepShell step={3} colors={colors} title="kimler bu hatta? 🫶" sub="2 kişi ya da koca bir grup, fark etmez."
+      onBack={() => setStep(2)} onNext={finish} nextTitle="hattı aç 🚀" canNext={friends.length > 0 || !!friend.trim()}>
+      <Label>senin adın</Label>
+      <TextInput value={me} onChangeText={setMe} placeholder="Kerime" placeholderTextColor="#B79BCB" style={styles.input} maxLength={20} />
+      <Label style={{ marginTop: 22 }}>talep atacağın kişiler</Label>
+      <View style={styles.addRow}>
+        <TextInput
+          value={friend} onChangeText={setFriend} placeholder="Sevgilim, Elif, Zeynep..." placeholderTextColor="#B79BCB"
+          style={[styles.input, { flex: 1 }]} maxLength={20} onSubmitEditing={addFriend} returnKeyType="done" blurOnSubmit={false}
+        />
+        <ChromeButton title="ekle" onPress={addFriend} style={{ marginLeft: 10 }} />
+      </View>
+      <View style={[styles.wrap, { marginTop: 14 }]}>
+        {friends.map((f, i) => (
+          <Chip key={`${f}-${i}`} on label={`${f}  ✕`} onPress={() => setFriends(fs => fs.filter((_, j) => j !== i))} />
+        ))}
+      </View>
+      <Text style={styles.hint}>gerçek davet linki bir sonraki adımda geliyor ✦ şimdilik isimleri yaz yeter.</Text>
+    </StepShell>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Talep kartı
+// ─────────────────────────────────────────────────────────────
+function RequestCard({ r, cat, fromName, toName, onPress }) {
+  const st = STATUS[r.status];
+  const urgent = r.urgency === 'acil' && OPEN.includes(r.status);
+  return (
+    <Pressable onPress={() => { tap(); onPress(); }} style={({ pressed }) => [{ marginTop: 18, transform: [{ scale: pressed ? 0.98 : 1 }] }]}>
+      <Glass style={[styles.card, urgent && styles.cardUrgent]}>
+        <View style={styles.cardEmoji}><Text style={{ fontSize: 26 }}>{cat ? cat.e : '✨'}</Text></View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.cardCat}>{trUpper(cat ? cat.t : 'genel')}{urgent ? '  ·  🚨 ACİL' : ''}</Text>
+          <Text style={styles.cardTitle} numberOfLines={2}>{r.title}</Text>
+          <Text style={styles.cardMeta}>{fromName} → {toName} · {timeAgo(r.createdAt)}</Text>
+        </View>
+        {r.image ? <Image source={{ uri: r.image }} style={styles.cardThumb} /> : null}
+      </Glass>
+      <Sticker text={`${st.e} ${st.t}`} bg={st.bg} rotate={r.id.charCodeAt(0) % 2 ? '-5deg' : '4deg'} style={styles.cardSticker} />
+    </Pressable>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Yeni talep
+// ─────────────────────────────────────────────────────────────
+function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, left }) {
+  const others = data.members.filter(m => m.id !== viewer.id);
+  const [to, setTo] = useState(null);
+  const [catId, setCatId] = useState(null);
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
+  const [urgency, setUrgency] = useState('onemli');
+  const [image, setImage] = useState(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    setTo(others[0] ? others[0].id : null);
+    setCatId(data.line.cats[0] ? data.line.cats[0].id : null);
+    setTitle(''); setDesc(''); setUrgency('onemli'); setImage(null);
+  }, [visible]);
+
+  const pick = async () => {
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true });
+      if (!res.canceled && res.assets && res.assets.length) setImage(res.assets[0].uri);
+    } catch (e) {
+      Alert.alert('olmadı 😵', 'görsel seçilemedi, tekrar dener misin?');
+    }
+  };
+
+  return (
+    <Sheet visible={visible} onClose={onClose} colors={colors}>
+      <HoloText style={styles.sheetTitle}>yeni talep ✦</HoloText>
+      <Text style={styles.sheetSub}>kalan hakkın: {left === Infinity ? '∞' : left} · ikna edici ol 😌</Text>
+
+      <Label style={{ marginTop: 20 }}>kime?</Label>
+      <View style={styles.wrap}>
+        {others.map(m => (
+          <Pressable key={m.id} onPress={() => { tap(); setTo(m.id); }} style={[styles.toChip, to === m.id && styles.chipOn]}>
+            <Avatar name={m.name} index={data.members.findIndex(x => x.id === m.id)} size={26} />
+            <Text style={[styles.chipTxt, { marginLeft: 8 }, to === m.id && styles.chipTxtOn]}>{m.name}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Label style={{ marginTop: 20 }}>başlık</Label>
+      <View style={styles.wrap}>
+        {data.line.cats.map(c => <Chip key={c.id} label={`${c.e} ${c.t}`} on={catId === c.id} onPress={() => setCatId(c.id)} />)}
+      </View>
+
+      <Label style={{ marginTop: 20 }}>ne istiyorsun?</Label>
+      <TextInput value={title} onChangeText={setTitle} placeholder="cumartesi sushi date 🍣" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
+
+      <Label style={{ marginTop: 16 }}>detaylar (ikna et bakalım)</Label>
+      <TextInput
+        value={desc} onChangeText={setDesc} multiline placeholder="çünkü bu hafta çok iyi bir insandım ve bunu hak ediyorum..."
+        placeholderTextColor="#B79BCB" style={[styles.input, styles.textarea]} maxLength={400}
+      />
+
+      <Label style={{ marginTop: 16 }}>aciliyet</Label>
+      <View style={styles.segment}>
+        {URGENCY.map(u => (
+          <Pressable key={u.k} onPress={() => { tap(); setUrgency(u.k); }} style={[styles.segBtn, urgency === u.k && styles.segOn, urgency === u.k && u.k === 'acil' && { backgroundColor: C.hot }]}>
+            <Text style={[styles.segTxt, urgency === u.k && { color: '#fff' }]}>{u.t}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Label style={{ marginTop: 16 }}>görsel / ilham</Label>
+      {image ? (
+        <View>
+          <Image source={{ uri: image }} style={styles.formImg} />
+          <Pressable onPress={() => setImage(null)} style={styles.imgRemove}><Text style={{ color: '#fff', fontFamily: F.bold }}>✕</Text></Pressable>
+        </View>
+      ) : (
+        <Pressable onPress={() => { tap(); pick(); }} style={styles.imgAdd}>
+          <Text style={{ fontSize: 30 }}>🖼️</Text>
+          <Text style={styles.imgAddTxt}>görsel ekle</Text>
+          <Text style={styles.hint}>istediğin çanta, mekan, nail art... göster ki anlasın</Text>
+        </Pressable>
+      )}
+
+      <ChromeButton
+        hot big title="talebi fırlat 🚀" disabled={!title.trim() || !to} style={{ marginTop: 26 }}
+        onPress={() => onSend({ to, catId, title, desc, urgency, image })}
+      />
+    </Sheet>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Talep detayı: onayla / reddet / pazarlık / itiraz
+// ─────────────────────────────────────────────────────────────
+function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
+  const [mode, setMode] = useState(null);
+  const [text, setText] = useState('');
+  useEffect(() => { if (visible) { setMode(null); setText(''); } }, [visible, r && r.id]);
+
+  const nameOf = id => (data.members.find(m => m.id === id) || { name: '?' }).name;
+  const body = () => {
+    if (!r) return null;
+    const cat = data.line.cats.find(c => c.id === r.catId);
+    const st = STATUS[r.status];
+    const isTo = r.to === viewer.id;
+    const isFrom = r.from === viewer.id;
+    const open = OPEN.includes(r.status);
+    const appealed = r.history.some(h => h.type === 'appeal');
+    const lastNego = [...r.history].reverse().find(h => h.type === 'nego');
+    const urg = URGENCY.find(u => u.k === r.urgency);
+
+    let actions = null;
+    if (isTo && open) {
+      if (mode === 'reject') {
+        actions = (
+          <Glass>
+            <Label>ret sebebi seç 💔</Label>
+            <View style={styles.wrap}>
+              {REJECT_REASONS.map(x => <Chip key={x} label={x} on={text === x} onPress={() => setText(x)} />)}
+            </View>
+            <TextInput value={text} onChangeText={setText} placeholder="ya da kendin yaz..." placeholderTextColor="#B79BCB" style={[styles.input, { marginTop: 12 }]} maxLength={80} />
+            <View style={styles.actRow}>
+              <ChromeButton small title="vazgeç" onPress={() => setMode(null)} />
+              <ChromeButton small hot title="reddet 💔" disabled={!text.trim()} onPress={() => act.reject(r, text.trim())} />
+            </View>
+          </Glass>
+        );
+      } else if (mode === 'nego') {
+        actions = (
+          <Glass>
+            <Label>karşı teklifin ne? 🤝</Label>
+            <TextInput value={text} onChangeText={setText} placeholder="tamam ama önce bulaşıklar 🧽" placeholderTextColor="#B79BCB" style={styles.input} maxLength={120} />
+            <View style={styles.actRow}>
+              <ChromeButton small title="vazgeç" onPress={() => setMode(null)} />
+              <ChromeButton small hot title="teklifi gönder" disabled={!text.trim()} onPress={() => act.nego(r, text.trim())} />
+            </View>
+          </Glass>
+        );
+      } else {
+        actions = (
+          <View>
+            <ChromeButton hot big title="onayla 💖" onPress={() => act.approve(r)} />
+            <View style={styles.actRow}>
+              <ChromeButton title="pazarlık 🤝" onPress={() => { setText(''); setMode('nego'); }} style={{ flex: 1 }} />
+              <ChromeButton title="reddet 💔" onPress={() => { setText(''); setMode('reject'); }} style={{ flex: 1 }} />
+            </View>
+          </View>
+        );
+      }
+    } else if (isFrom && r.status === 'nego') {
+      actions = (
+        <View>
+          <Glass style={styles.bubble}>
+            <Text style={styles.kicker}>{nameOf(r.to)} diyor ki:</Text>
+            <Text style={styles.bubbleTxt}>“{lastNego ? lastNego.text : ''}”</Text>
+          </Glass>
+          <ChromeButton hot big title="anlaştık ✓" onPress={() => act.accept(r)} style={{ marginTop: 14 }} />
+          <ChromeButton title="talebi geri çek 🫥" onPress={() => act.withdraw(r)} style={{ marginTop: 10 }} />
+        </View>
+      );
+    } else if (isFrom && r.status === 'pending') {
+      actions = <ChromeButton title="talebi geri çek 🫥" onPress={() => act.withdraw(r)} />;
+    } else if (isFrom && r.status === 'rejected' && !appealed) {
+      actions = mode === 'appeal' ? (
+        <Glass>
+          <Label>itiraz dilekçen ⚖️</Label>
+          <TextInput
+            value={text} onChangeText={setText} multiline placeholder="sayın yargıç, bunu hak ediyorum çünkü..."
+            placeholderTextColor="#B79BCB" style={[styles.input, styles.textarea]} maxLength={200}
+          />
+          <View style={styles.actRow}>
+            <ChromeButton small title="vazgeç" onPress={() => setMode(null)} />
+            <ChromeButton small hot title="itiraz et" disabled={!text.trim()} onPress={() => act.appeal(r, text.trim())} />
+          </View>
+        </Glass>
+      ) : (
+        <ChromeButton hot title="itiraz et ⚖️ (1 hak)" onPress={() => { setText(''); setMode('appeal'); }} />
+      );
+    } else if (isFrom && r.status === 'appeal') {
+      actions = <Text style={styles.info}>itirazın masada ⚖️ karar bekleniyor...</Text>;
+    } else if (!isTo && !isFrom) {
+      actions = <Text style={styles.info}>bu talep sana ait değil ama izlemek serbest 🍿</Text>;
+    }
+
+    return (
+      <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Sticker text={`${cat ? cat.e : '✨'} ${trUpper(cat ? cat.t : 'genel')}`} rotate="-3deg" />
+          <Sticker text={`${st.e} ${st.t}`} bg={st.bg} rotate="4deg" />
+        </View>
+        <Text style={styles.detailTitle}>{r.title}</Text>
+        <Text style={styles.detailMeta}>{nameOf(r.from)} → {nameOf(r.to)} · {timeAgo(r.createdAt)} · {urg ? urg.t : ''}</Text>
+
+        {r.status === 'approved' ? (
+          <LinearGradient colors={['#9DFFD5', '#B5DEFF', '#FFB5E8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.approvedBanner}>
+            <Text style={styles.approvedTxt}>💖 ONAYLANDI 💖</Text>
+          </LinearGradient>
+        ) : null}
+
+        {r.desc ? <Glass style={{ marginTop: 16 }}><Text style={styles.desc}>{r.desc}</Text></Glass> : null}
+        {r.image ? <Image source={{ uri: r.image }} style={styles.detailImg} /> : null}
+
+        {actions ? <View style={{ marginTop: 20 }}>{actions}</View> : null}
+
+        <Label style={{ marginTop: 26 }}>talep geçmişi</Label>
+        <Glass>
+          {r.history.map((h, i) => (
+            <View key={i} style={[styles.histRow, i > 0 && styles.histBorder]}>
+              <Text style={styles.histMain}>{nameOf(h.by)} {HIST[h.type]}</Text>
+              {h.text ? <Text style={styles.histText}>“{h.text}”</Text> : null}
+              <Text style={styles.histTime}>{timeAgo(h.at)}</Text>
+            </View>
+          ))}
+        </Glass>
+      </View>
+    );
+  };
+
+  return <Sheet visible={visible} onClose={onClose} colors={colors}>{body()}</Sheet>;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Talepp+ (şimdilik demo; gerçek ödeme sonraki adımlarda)
+// ─────────────────────────────────────────────────────────────
+function PaywallSheet({ visible, onClose, reason, viewer, colors, onSubscribe }) {
+  const [sel, setSel] = useState('p10');
+  return (
+    <Sheet visible={visible} onClose={onClose} colors={colors}>
+      <View style={{ alignItems: 'center' }}>
+        <Text style={{ fontSize: 58 }}>👑</Text>
+        <HoloText style={styles.payTitle}>Talepp+</HoloText>
+        <Text style={styles.paySub}>
+          {reason === 'limit' ? 'bugünlük talep hakkın doldu 😩\nama kraliçeler beklemez.' : 'daha çok talep, daha çok drama ✦'}
+        </Text>
+      </View>
+
+      {PAID.map(p => {
+        const on = sel === p.k;
+        return (
+          <Pressable key={p.k} onPress={() => { tap(); setSel(p.k); }} style={{ marginTop: 18 }}>
+            <LinearGradient colors={on ? HOT : ['#FFFFFF', '#FFFFFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.planOuter}>
+              <View style={styles.planInner}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.planName}>{p.t}</Text>
+                  <Text style={styles.planDesc}>{p.desc}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.planPrice}>{p.price}</Text>
+                  <Text style={styles.planPer}>/ ay</Text>
+                </View>
+              </View>
+            </LinearGradient>
+            {p.badge ? <Sticker text={p.badge} bg={C.butter} rotate="5deg" style={styles.planBadge} /> : null}
+          </Pressable>
+        );
+      })}
+
+      <ChromeButton
+        hot big style={{ marginTop: 26 }}
+        title={viewer.plan === sel ? 'zaten bu plandasın ✓' : 'abone ol ✦'}
+        disabled={viewer.plan === sel}
+        onPress={() => onSubscribe(sel)}
+      />
+      <Pressable onPress={() => Alert.alert('geri yükle', 'gerçek satın alma sistemi eklenince burası çalışacak ✦')}>
+        <Text style={styles.restore}>satın alımları geri yükle</Text>
+      </Pressable>
+      <Text style={styles.fine}>
+        demo: henüz gerçek ödeme alınmıyor. yayında ücret Apple ID'nden alınır ve iptal edilmedikçe abonelik otomatik yenilenir. App Store ayarlarından istediğin zaman iptal edebilirsin.
+      </Text>
+    </Sheet>
+  );
+}
+
+function InviteSheet({ visible, onClose, line, colors }) {
+  const share = () => {
+    Share.share({ message: `${line.emoji} ${line.name} hattıma katıl! Talepp'i indir, kodu gir: ${line.code} ✦` }).catch(() => {});
+  };
+  return (
+    <Sheet visible={visible} onClose={onClose} colors={colors}>
+      <View style={{ alignItems: 'center' }}>
+        <Text style={{ fontSize: 60 }}>💌</Text>
+        <HoloText style={styles.sheetTitle}>hattına çağır</HoloText>
+        <Text style={styles.paySub}>bu kodu sevgiline ya da kankalarına at,{'\n'}{line.name} hattına katılsınlar.</Text>
+        <LinearGradient colors={CHROME} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.codeBox}>
+          <Text style={styles.code}>{line.code}</Text>
+        </LinearGradient>
+      </View>
+      <ChromeButton hot big title="kodu paylaş 📲" onPress={share} style={{ marginTop: 26 }} />
+      <Text style={styles.fine}>kodla katılma, hesaplar ve gerçek zamanlı bildirimler bir sonraki adımda bağlanacak.</Text>
+    </Sheet>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Ana ekran
+// ─────────────────────────────────────────────────────────────
+function Home({ data, setData }) {
+  const insets = useSafeAreaInsets();
+  const colors = (THEMES[data.line.theme] || THEMES.bubblegum).colors;
+  const viewer = data.members.find(m => m.id === data.viewerId) || data.members[0];
+  const nameOf = id => (data.members.find(m => m.id === id) || { name: '?' }).name;
+
+  const [tab, setTab] = useState('in');
+  const [sheet, setSheet] = useState(null); // 'new' | 'detail' | 'paywall' | 'invite'
+  const [detailId, setDetailId] = useState(null);
+  const [paywallReason, setPaywallReason] = useState('browse');
+  const [toastMsg, setToastMsg] = useState(null);
+  const [burst, setBurst] = useState(0);
+  const toastA = useRef(new Animated.Value(0)).current;
+
+  const toast = msg => {
+    setToastMsg(msg);
+    toastA.setValue(0);
+    Animated.sequence([
+      Animated.spring(toastA, { toValue: 1, useNativeDriver: true, bounciness: 12 }),
+      Animated.delay(2300),
+      Animated.timing(toastA, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start();
+  };
+
+  // iOS'ta iki modal üst üste açılamıyor: önce kapat, animasyon bitince devam et
+  const closeThen = fn => { setSheet(null); setTimeout(fn, 450); };
+  const openPaywall = reason => {
+    setPaywallReason(reason);
+    if (sheet) closeThen(() => setSheet('paywall'));
+    else setSheet('paywall');
+  };
+
+  const limit = dailyLimit(viewer);
+  const used = sentToday(data.requests, viewer.id);
+  const left = Math.max(0, limit - used);
+
+  const quotaHint = viewer.plan === 'free'
+    ? (limit > 0 ? 'ilk gün hediyesi 🎁 1 talep bizden' : 'ücretsiz hak ilk gün içindi 💅 devam için Talepp+')
+    : (limit === Infinity ? 'kraliçe modu açık 👑' : `${planOf(viewer.plan).desc} · her gece yenilenir`);
+
+  const updateReq = (id, fn) => setData(d => ({ ...d, requests: d.requests.map(r => (r.id === id ? fn(r) : r)) }));
+  const withH = (r, type, text) => ({ ...r, history: [...r.history, { type, text, by: viewer.id, at: Date.now() }] });
+  const celebrate = msg => { success(); setBurst(Date.now()); toast(msg); };
+
+  const act = {
+    approve: r => {
+      updateReq(r.id, x => ({ ...withH(x, 'approved'), status: 'approved' }));
+      closeThen(() => celebrate(`💖 onaylandı! ${nameOf(r.from)} uçuyor şu an`));
+    },
+    reject: (r, reason) => {
+      updateReq(r.id, x => ({ ...withH(x, 'rejected', reason), status: 'rejected' }));
+      closeThen(() => toast('💔 reddedildi. acımasızsın ama haklısın'));
+    },
+    nego: (r, text) => {
+      updateReq(r.id, x => ({ ...withH(x, 'nego', text), status: 'nego' }));
+      closeThen(() => toast('🤝 karşı teklif masada'));
+    },
+    accept: r => {
+      updateReq(r.id, x => ({ ...withH(x, 'accepted'), status: 'approved' }));
+      closeThen(() => celebrate('✅ anlaştınız! talep onaylandı'));
+    },
+    appeal: (r, text) => {
+      updateReq(r.id, x => ({ ...withH(x, 'appeal', text), status: 'appeal' }));
+      closeThen(() => toast('⚖️ itiraz edildi, mahkeme toplanıyor'));
+    },
+    withdraw: r => {
+      setData(d => ({ ...d, requests: d.requests.filter(x => x.id !== r.id) }));
+      closeThen(() => toast('🫥 talep geri çekildi'));
+    },
+  };
+
+  const send = ({ to, catId, title, desc, urgency, image }) => {
+    if (used >= limit) { openPaywall('limit'); return; }
+    const now = Date.now();
+    const r = {
+      id: uid(), from: viewer.id, to, catId, title: title.trim(), desc: desc.trim(), urgency, image,
+      status: 'pending', createdAt: now, day: todayKey(), history: [{ type: 'created', by: viewer.id, at: now }],
+    };
+    setData(d => ({ ...d, requests: [r, ...d.requests] }));
+    setTab('out');
+    closeThen(() => { success(); toast(`🚀 talep fırlatıldı · ${nameOf(to)} bildirim aldı`); });
+  };
+
+  const subscribe = k => {
+    setData(d => ({ ...d, members: d.members.map(m => (m.id === viewer.id ? { ...m, plan: k } : m)) }));
+    closeThen(() => celebrate(`👑 ${planOf(k).t} aktif!`));
+  };
+
+  const onFab = () => (left <= 0 ? openPaywall('limit') : setSheet('new'));
+
+  const settings = () => {
+    Alert.alert(`${data.line.emoji} ${data.line.name}`, 'ne yapmak istersin?', [
+      { text: 'arkadaş davet et 💌', onPress: () => setSheet('invite') },
+      { text: 'Talepp+ planları 👑', onPress: () => openPaywall('browse') },
+      {
+        text: 'hattı sıfırla (demo)', style: 'destructive',
+        onPress: () => Alert.alert('emin misin?', 'hat ve tüm talepler silinecek.', [
+          { text: 'vazgeç', style: 'cancel' },
+          { text: 'sıfırla', style: 'destructive', onPress: () => setData(null) },
+        ]),
+      },
+      { text: 'kapat', style: 'cancel' },
+    ]);
+  };
+
+  const list = data.requests
+    .filter(r => (tab === 'in' ? r.to === viewer.id : tab === 'out' ? r.from === viewer.id : true))
+    .sort((a, b) => b.createdAt - a.createdAt);
+  const inPending = data.requests.filter(r => r.to === viewer.id && OPEN.includes(r.status)).length;
+  const detail = data.requests.find(r => r.id === detailId);
+
+  const EMPTY = {
+    in: ['📭', 'gelen kutun bomboş', 'biri sana talep atınca burada parlayacak ✦'],
+    out: ['🚀', 'henüz talep atmadın', 'ilk talebini fırlat, bakalım onaylanacak mı 👀'],
+    all: ['🫧', 'hat sessiz...', 'fırtına öncesi sessizlik bu 🌪️'],
+  }[tab];
+
+  return (
+    <HoloBg colors={colors}>
+      <ScrollView
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: insets.bottom + 130 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.homeHead}>
+          <View style={styles.lineEmoji}><Text style={{ fontSize: 30 }}>{data.line.emoji}</Text></View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.kicker}>talep hattı ✦</Text>
+            <Text style={styles.lineName} numberOfLines={2}>{data.line.name}</Text>
+          </View>
+          <Pressable onPress={() => { tap(); settings(); }} hitSlop={10} style={styles.gear}>
+            <Text style={{ fontSize: 20, color: C.ink }}>⚙︎</Text>
+          </Pressable>
+        </View>
+
+        <Text style={[styles.label, { marginTop: 16 }]}>👀 kimin gözünden bakıyorsun (demo)</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+          {data.members.map((m, i) => {
+            const on = m.id === viewer.id;
+            return (
+              <Pressable key={m.id} onPress={() => { tap(); setData(d => ({ ...d, viewerId: m.id })); }} style={[styles.viewerChip, on && styles.viewerChipOn]}>
+                <Avatar name={m.name} index={i} size={30} active={on} />
+                <Text style={[styles.viewerName, on && { color: '#fff' }]}>{m.name}</Text>
+              </Pressable>
+            );
+          })}
+          <Pressable onPress={() => { tap(); setSheet('invite'); }} style={styles.viewerChip}>
+            <Text style={styles.viewerName}>＋ davet</Text>
+          </Pressable>
+        </ScrollView>
+
+        <Glass style={{ marginTop: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>bugünkü talep hakkın</Text>
+              <HoloText style={styles.quotaBig}>{limit === Infinity ? '∞' : `${left}/${limit}`}</HoloText>
+              <Text style={styles.quotaHint}>{quotaHint}</Text>
+            </View>
+            {viewer.plan === 'free'
+              ? <ChromeButton small hot title="Talepp+ 👑" onPress={() => openPaywall('browse')} />
+              : <Pressable onPress={() => openPaywall('browse')}><Sticker text={`👑 ${planOf(viewer.plan).short}`} bg={C.butter} rotate="6deg" /></Pressable>}
+          </View>
+          {limit !== Infinity && limit > 0 ? (
+            <View style={styles.bar}>
+              <LinearGradient colors={HOT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ width: `${Math.min(100, (used / limit) * 100)}%`, height: '100%', borderRadius: 99 }} />
+            </View>
+          ) : null}
+        </Glass>
+
+        <View style={styles.tabs}>
+          {[['in', 'gelen'], ['out', 'giden'], ['all', 'tüm hat']].map(([k, t]) => (
+            <Pressable key={k} onPress={() => { tap(); setTab(k); }} style={[styles.tab, tab === k && styles.tabOn]}>
+              <Text style={[styles.tabTxt, tab === k && styles.tabTxtOn]}>{t}</Text>
+              {k === 'in' && inPending > 0 ? <View style={styles.badge}><Text style={styles.badgeTxt}>{inPending}</Text></View> : null}
+            </Pressable>
+          ))}
+        </View>
+
+        {list.length === 0 ? (
+          <Glass style={{ alignItems: 'center', paddingVertical: 34, marginTop: 18 }}>
+            <Text style={{ fontSize: 54 }}>{EMPTY[0]}</Text>
+            <Text style={styles.emptyTitle}>{EMPTY[1]}</Text>
+            <Text style={styles.emptySub}>{EMPTY[2]}</Text>
+          </Glass>
+        ) : list.map(r => (
+          <RequestCard
+            key={r.id} r={r}
+            cat={data.line.cats.find(c => c.id === r.catId)}
+            fromName={nameOf(r.from)} toName={nameOf(r.to)}
+            onPress={() => { setDetailId(r.id); setSheet('detail'); }}
+          />
+        ))}
+      </ScrollView>
+
+      <View style={[styles.fabWrap, { bottom: insets.bottom + 14 }]} pointerEvents="box-none">
+        <ChromeButton hot big title="✦ TALEP AT ✦" onPress={onFab} />
+      </View>
+
+      {toastMsg ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.toast, {
+            top: insets.top + 8, opacity: toastA,
+            transform: [{ translateY: toastA.interpolate({ inputRange: [0, 1], outputRange: [-30, 0] }) }],
+          }]}
+        >
+          <Text style={styles.toastTxt}>{toastMsg}</Text>
+        </Animated.View>
+      ) : null}
+
+      <Confetti burst={burst} />
+
+      <NewRequestSheet visible={sheet === 'new'} onClose={() => setSheet(null)} data={data} viewer={viewer} colors={colors} onSend={send} left={left} />
+      <DetailSheet visible={sheet === 'detail'} onClose={() => setSheet(null)} r={detail} data={data} viewer={viewer} colors={colors} act={act} />
+      <PaywallSheet visible={sheet === 'paywall'} onClose={() => setSheet(null)} reason={paywallReason} viewer={viewer} colors={colors} onSubscribe={subscribe} />
+      <InviteSheet visible={sheet === 'invite'} onClose={() => setSheet(null)} line={data.line} colors={colors} />
+    </HoloBg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Kök
+// ─────────────────────────────────────────────────────────────
+export default function App() {
+  const [fontsLoaded] = useFonts({ Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black });
+  const [data, setData] = useState(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORE_KEY);
+        if (raw) setData(JSON.parse(raw));
+      } catch (e) {}
+      setReady(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    (data ? AsyncStorage.setItem(STORE_KEY, JSON.stringify(data)) : AsyncStorage.removeItem(STORE_KEY)).catch(() => {});
+  }, [data, ready]);
+
+  if (!fontsLoaded || !ready) return <View style={{ flex: 1, backgroundColor: '#FFC6EC' }} />;
+
+  return (
+    <SafeAreaProvider>
+      <StatusBar style="dark" />
+      {data ? <Home data={data} setData={setData} /> : <Onboarding onDone={setData} />}
+    </SafeAreaProvider>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Stiller
+// ─────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  sheen: {
+    position: 'absolute', top: -120, left: -80, width: 320, height: 320, borderRadius: 160,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  holoShadow: { position: 'absolute', left: 2, top: 3, color: '#fff' },
+
+  logo: { fontFamily: F.black, fontSize: 56, letterSpacing: -2, marginTop: 18 },
+  tagline: { fontFamily: F.med, fontSize: 15, color: C.ink, textAlign: 'center', lineHeight: 23, marginTop: 10 },
+  gift: { fontFamily: F.med, fontSize: 12, color: C.inkSoft, textAlign: 'center', marginTop: 14 },
+
+  float: {
+    position: 'absolute', flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.78)', borderRadius: 22, borderWidth: 2, borderColor: '#fff',
+    paddingVertical: 12, paddingHorizontal: 14,
+    shadowColor: C.violet, shadowOpacity: 0.25, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 5,
+  },
+  floatTitle: { fontFamily: F.bold, fontSize: 13, color: C.ink },
+
+  btnShadow: { shadowColor: C.violet, shadowOpacity: 0.25, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4, borderRadius: 999 },
+  btnShadowHot: { shadowColor: C.hot, shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 6, borderRadius: 999 },
+  btn: {
+    borderRadius: 999, paddingVertical: 15, paddingHorizontal: 22, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff', overflow: 'hidden',
+  },
+  btnBig: { paddingVertical: 20, paddingHorizontal: 30 },
+  btnSmall: { paddingVertical: 10, paddingHorizontal: 16 },
+  btnShine: {
+    position: 'absolute', top: 2, left: 14, right: 14, height: '45%', borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  btnText: { fontFamily: F.bold, fontSize: 14 },
+  btnTextBig: { fontFamily: F.black, fontSize: 17, letterSpacing: 0.5 },
+  btnTextSmall: { fontSize: 12 },
+
+  glass: {
+    backgroundColor: 'rgba(255,255,255,0.58)', borderRadius: 28, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.95)',
+    padding: 18,
+    shadowColor: C.violet, shadowOpacity: 0.14, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 3,
+  },
+
+  sticker: {
+    alignSelf: 'flex-start', borderWidth: 2, borderColor: C.ink, borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 5,
+    shadowColor: C.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 2, height: 3 }, elevation: 2,
+  },
+  stickerSmall: { paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1.5, borderRadius: 8 },
+  stickerTxt: { fontFamily: F.bold, fontSize: 10, color: C.ink, letterSpacing: 0.5 },
+
+  chip: {
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.7)', borderWidth: 1.5, borderColor: '#fff',
+  },
+  chipOn: { backgroundColor: C.ink, borderColor: C.ink },
+  chipTxt: { fontFamily: F.med, fontSize: 12, color: C.ink },
+  chipTxtOn: { color: '#fff' },
+  toChip: {
+    flexDirection: 'row', alignItems: 'center', paddingLeft: 6, paddingRight: 14, paddingVertical: 6, borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.7)', borderWidth: 1.5, borderColor: '#fff',
+  },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+
+  label: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, letterSpacing: 0.6 },
+  kicker: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, letterSpacing: 0.6 },
+  hint: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, marginTop: 12, lineHeight: 17, textAlign: 'center' },
+  info: { fontFamily: F.med, fontSize: 13, color: C.ink, textAlign: 'center', lineHeight: 20 },
+
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 20, borderWidth: 2, borderColor: '#fff',
+    paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontWeight: '600', color: C.ink, marginTop: 10,
+  },
+  textarea: { minHeight: 100, textAlignVertical: 'top', paddingTop: 14 },
+  addRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 4 },
+
+  stepTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  back: { fontFamily: F.med, fontSize: 13, color: C.ink },
+  dot: { width: 26, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.7)' },
+  dotOn: { backgroundColor: C.ink },
+  stepNo: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, marginTop: 26, letterSpacing: 0.6 },
+  stepTitle: { fontFamily: F.black, fontSize: 28, color: C.ink, marginTop: 6, letterSpacing: -0.5, lineHeight: 36 },
+  stepSub: { fontFamily: F.med, fontSize: 13, color: C.inkSoft, marginTop: 8, lineHeight: 20 },
+
+  emojiBox: {
+    width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.6)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)',
+  },
+  emojiBoxOn: { borderColor: C.ink, backgroundColor: '#fff', transform: [{ scale: 1.08 }] },
+  preview: { flexDirection: 'row', alignItems: 'center', marginTop: 24 },
+  previewName: { fontFamily: F.black, fontSize: 18, color: C.ink, marginTop: 4 },
+
+  themeRow: { flexDirection: 'row', gap: 8 },
+  swatch: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff' },
+  swatchOn: { borderColor: C.ink, transform: [{ scale: 1.08 }] },
+  swatchTxt: { fontFamily: F.med, fontSize: 10, color: C.ink, marginTop: 8, textAlign: 'center' },
+
+  homeHead: { flexDirection: 'row', alignItems: 'center' },
+  lineEmoji: {
+    width: 58, height: 58, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: C.ink, transform: [{ rotate: '-6deg' }],
+    shadowColor: C.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 3, height: 3 },
+  },
+  lineName: { fontFamily: F.black, fontSize: 21, color: C.ink, letterSpacing: -0.5, marginTop: 2 },
+  gear: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#fff',
+  },
+  viewerChip: {
+    flexDirection: 'row', alignItems: 'center', paddingLeft: 4, paddingRight: 14, paddingVertical: 4, borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.65)', borderWidth: 1.5, borderColor: '#fff', marginTop: 8, minHeight: 40,
+  },
+  viewerChipOn: { backgroundColor: C.ink, borderColor: C.ink },
+  viewerName: { fontFamily: F.bold, fontSize: 12, color: C.inkSoft, marginLeft: 8 },
+
+  quotaBig: { fontFamily: F.black, fontSize: 40, letterSpacing: -1, marginTop: 4 },
+  quotaHint: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, marginTop: 2 },
+  bar: { height: 10, borderRadius: 99, backgroundColor: 'rgba(43,15,69,0.08)', marginTop: 14, overflow: 'hidden' },
+
+  tabs: {
+    flexDirection: 'row', marginTop: 18, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 999, padding: 5,
+    borderWidth: 1.5, borderColor: '#fff',
+  },
+  tab: { flex: 1, paddingVertical: 11, borderRadius: 999, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+  tabOn: { backgroundColor: C.ink },
+  tabTxt: { fontFamily: F.bold, fontSize: 12, color: C.inkSoft },
+  tabTxtOn: { color: '#fff' },
+  badge: { marginLeft: 6, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: C.hot, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  badgeTxt: { fontFamily: F.black, fontSize: 10, color: '#fff' },
+
+  card: { flexDirection: 'row', alignItems: 'center', paddingTop: 22 },
+  cardUrgent: { borderColor: C.hot, borderWidth: 2.5, shadowColor: C.hot, shadowOpacity: 0.45 },
+  cardEmoji: {
+    width: 52, height: 52, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: 'rgba(43,15,69,0.1)',
+  },
+  cardCat: { fontFamily: F.med, fontSize: 9, color: C.inkSoft, letterSpacing: 1 },
+  cardTitle: { fontFamily: F.bold, fontSize: 15, color: C.ink, marginTop: 3, lineHeight: 20 },
+  cardMeta: { fontSize: 12, fontWeight: '600', color: C.inkSoft, marginTop: 4 },
+  cardThumb: { width: 54, height: 54, borderRadius: 14, marginLeft: 10, borderWidth: 2, borderColor: '#fff' },
+  cardSticker: { position: 'absolute', top: -10, right: 14 },
+
+  emptyTitle: { fontFamily: F.black, fontSize: 17, color: C.ink, marginTop: 10 },
+  emptySub: { fontFamily: F.med, fontSize: 12, color: C.inkSoft, marginTop: 6, textAlign: 'center', lineHeight: 18 },
+
+  fabWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+
+  toast: {
+    position: 'absolute', left: 18, right: 18, backgroundColor: C.ink, borderRadius: 22, paddingVertical: 14, paddingHorizontal: 18,
+    shadowColor: C.hot, shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8,
+  },
+  toastTxt: { fontFamily: F.bold, fontSize: 13, color: '#fff', textAlign: 'center' },
+
+  sheetTop: { alignItems: 'center', paddingTop: 10, height: 50 },
+  grabber: { width: 44, height: 5, borderRadius: 3, backgroundColor: 'rgba(43,15,69,0.25)' },
+  closeBtn: {
+    position: 'absolute', right: 16, top: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.75)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  closeTxt: { fontFamily: F.bold, fontSize: 14, color: C.ink },
+  sheetBody: { paddingHorizontal: 20, paddingBottom: 60 },
+  sheetTitle: { fontFamily: F.black, fontSize: 30, letterSpacing: -1 },
+  sheetSub: { fontFamily: F.med, fontSize: 12, color: C.inkSoft, marginTop: 6 },
+
+  segment: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  segBtn: { flex: 1, paddingVertical: 12, borderRadius: 16, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.7)', borderWidth: 1.5, borderColor: '#fff' },
+  segOn: { backgroundColor: C.ink, borderColor: C.ink },
+  segTxt: { fontFamily: F.bold, fontSize: 11, color: C.ink },
+
+  imgAdd: {
+    marginTop: 10, borderRadius: 24, borderWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(43,15,69,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.45)', alignItems: 'center', paddingVertical: 22, paddingHorizontal: 16,
+  },
+  imgAddTxt: { fontFamily: F.bold, fontSize: 13, color: C.ink, marginTop: 6 },
+  formImg: { width: '100%', aspectRatio: 1, borderRadius: 24, marginTop: 10, borderWidth: 3, borderColor: '#fff' },
+  imgRemove: {
+    position: 'absolute', top: 22, right: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: C.ink,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  detailTitle: { fontFamily: F.black, fontSize: 26, color: C.ink, marginTop: 18, letterSpacing: -0.5, lineHeight: 34 },
+  detailMeta: { fontSize: 13, fontWeight: '600', color: C.inkSoft, marginTop: 6 },
+  desc: { fontSize: 16, fontWeight: '500', color: C.ink, lineHeight: 23 },
+  detailImg: { width: '100%', aspectRatio: 1, borderRadius: 26, marginTop: 16, borderWidth: 3, borderColor: '#fff' },
+  approvedBanner: { marginTop: 16, borderRadius: 22, paddingVertical: 16, alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
+  approvedTxt: { fontFamily: F.black, fontSize: 20, color: C.ink, letterSpacing: 1 },
+  actRow: { flexDirection: 'row', gap: 10, marginTop: 12, justifyContent: 'space-between' },
+  bubble: { borderTopLeftRadius: 8 },
+  bubbleTxt: { fontFamily: F.bold, fontSize: 16, color: C.ink, marginTop: 6, lineHeight: 22 },
+  histRow: { paddingVertical: 10 },
+  histBorder: { borderTopWidth: 1, borderTopColor: 'rgba(43,15,69,0.08)' },
+  histMain: { fontFamily: F.bold, fontSize: 12, color: C.ink },
+  histText: { fontSize: 14, fontStyle: 'italic', color: C.ink, marginTop: 4 },
+  histTime: { fontSize: 11, fontWeight: '600', color: C.inkSoft, marginTop: 4 },
+
+  payTitle: { fontFamily: F.black, fontSize: 44, letterSpacing: -1.5, marginTop: 4 },
+  paySub: { fontFamily: F.med, fontSize: 14, color: C.ink, textAlign: 'center', marginTop: 10, lineHeight: 21 },
+  planOuter: { borderRadius: 26, padding: 2.5 },
+  planInner: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: 24, padding: 18 },
+  planName: { fontFamily: F.black, fontSize: 15, color: C.ink },
+  planDesc: { fontFamily: F.med, fontSize: 12, color: C.inkSoft, marginTop: 4 },
+  planPrice: { fontFamily: F.black, fontSize: 18, color: C.ink },
+  planPer: { fontFamily: F.med, fontSize: 10, color: C.inkSoft },
+  planBadge: { position: 'absolute', top: -12, right: 16 },
+  restore: { fontFamily: F.med, fontSize: 12, color: C.ink, textAlign: 'center', marginTop: 16, textDecorationLine: 'underline' },
+  fine: { fontSize: 11, color: C.inkSoft, textAlign: 'center', marginTop: 14, lineHeight: 16 },
+
+  codeBox: { marginTop: 22, borderRadius: 24, paddingVertical: 20, paddingHorizontal: 30, borderWidth: 2, borderColor: C.ink },
+  code: { fontFamily: F.black, fontSize: 28, color: C.ink, letterSpacing: 3 },
+});
