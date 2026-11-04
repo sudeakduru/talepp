@@ -103,25 +103,27 @@ const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '
 const todayKey = () => dayKey(new Date());
 
 const DAY_SHORT = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+const WEEK_HEAD = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 const MONTH_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-const TIMES = Array.from({ length: 17 }, (_, i) => `${String((i + 8) % 24).padStart(2, '0')}:00`); // 08:00 … 00:00
+const MONTH_LONG = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
-// Talep formundaki gün çipleri: bugün, yarın, sonra "Cmt 8" gibi
-function nextDays(n) {
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    return { k: dayKey(d), t: i === 0 ? 'bugün' : i === 1 ? 'yarın' : `${DAY_SHORT[d.getDay()]} ${d.getDate()}` };
-  });
-}
 function dayLabel(k) {
   const [y, m, d] = k.split('-').map(Number);
   const t = new Date();
   if (k === dayKey(t)) return 'bugün';
   t.setDate(t.getDate() + 1);
   if (k === dayKey(t)) return 'yarın';
-  return `${d} ${MONTH_SHORT[m - 1]} ${DAY_SHORT[new Date(y, m - 1, d).getDay()]}`;
+  const year = y !== new Date().getFullYear() ? ` ${y}` : '';
+  return `${d} ${MONTH_SHORT[m - 1]}${year} ${DAY_SHORT[new Date(y, m - 1, d).getDay()]}`;
 }
+
+// Saat kutusu: rakamları "20:30" biçimine sokar; 9 ile başlarsa "09" yapar
+function fmtTime(s) {
+  let d = s.replace(/\D/g, '').slice(0, 4);
+  if (d && d[0] > '2') d = `0${d}`.slice(0, 4);
+  return d.length > 2 ? `${d.slice(0, 2)}:${d.slice(2)}` : d;
+}
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const whenText = r => [r.date && `📅 ${dayLabel(r.date)}`, r.time && `🕗 ${r.time}`, r.place && `📍 ${r.place}`].filter(Boolean).join('  ·  ');
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
@@ -583,6 +585,57 @@ function RequestCard({ r, cat, fromName, toName, onPress }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Takvim: geçmiş günler kapalı, ileri aylara istediğin kadar gidilir
+// ─────────────────────────────────────────────────────────────
+function Calendar({ value, onChange }) {
+  const today = todayKey();
+  const now = new Date();
+  const [view, setView] = useState(() => {
+    if (!value) return { y: now.getFullYear(), m: now.getMonth() };
+    const [y, m] = value.split('-').map(Number);
+    return { y, m: m - 1 };
+  });
+  const isFirst = view.y === now.getFullYear() && view.m === now.getMonth();
+  const shift = n => setView(v => {
+    const d = new Date(v.y, v.m + n, 1);
+    return { y: d.getFullYear(), m: d.getMonth() };
+  });
+  const lead = (new Date(view.y, view.m, 1).getDay() + 6) % 7; // hafta pazartesi başlar
+  const count = new Date(view.y, view.m + 1, 0).getDate();
+  const cells = [...Array(lead).fill(null), ...Array.from({ length: count }, (_, i) => i + 1)];
+
+  return (
+    <Glass style={{ marginTop: 10, padding: 14 }}>
+      <View style={styles.calHead}>
+        <Pressable onPress={() => { if (!isFirst) { tap(); shift(-1); } }} hitSlop={10} style={[styles.calArrow, isFirst && { opacity: 0.3 }]}>
+          <Text style={styles.calArrowTxt}>‹</Text>
+        </Pressable>
+        <Text style={styles.calTitle}>{MONTH_LONG[view.m]} {view.y}</Text>
+        <Pressable onPress={() => { tap(); shift(1); }} hitSlop={10} style={styles.calArrow}>
+          <Text style={styles.calArrowTxt}>›</Text>
+        </Pressable>
+      </View>
+      <View style={styles.calGrid}>
+        {WEEK_HEAD.map(w => <Text key={w} style={styles.calWeek}>{w}</Text>)}
+        {cells.map((d, i) => {
+          if (!d) return <View key={`e${i}`} style={styles.calCell} />;
+          const k = dayKey(new Date(view.y, view.m, d));
+          const past = k < today;
+          const on = k === value;
+          return (
+            <Pressable key={k} disabled={past} onPress={() => { tap(); onChange(k); }} style={styles.calCell}>
+              <View style={[styles.calDay, k === today && styles.calToday, on && styles.calOn]}>
+                <Text style={[styles.calDayTxt, past && { opacity: 0.3 }, on && { color: '#fff' }]}>{d}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </Glass>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Yeni talep
 // ─────────────────────────────────────────────────────────────
 function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAddCat, left }) {
@@ -595,15 +648,17 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
   const [urgency, setUrgency] = useState('onemli');
   const [image, setImage] = useState(null);
   const [date, setDate] = useState(null);
-  const [time, setTime] = useState(null);
+  const [calOpen, setCalOpen] = useState(false);
+  const [time, setTime] = useState('');
   const [place, setPlace] = useState('');
+  const timeBad = time.length > 0 && !TIME_RE.test(time);
 
   useEffect(() => {
     if (!visible) return;
     setTo(others[0] ? others[0].id : null);
     setCatId(data.line.cats[0] ? data.line.cats[0].id : null);
     setNewCat(null); setTitle(''); setDesc(''); setUrgency('onemli'); setImage(null);
-    setDate(null); setTime(null); setPlace('');
+    setDate(null); setCalOpen(false); setTime(''); setPlace('');
   }, [visible]);
 
   const addCat = () => {
@@ -657,18 +712,24 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
       <TextInput value={title} onChangeText={setTitle} placeholder="cumartesi sushi date 🍣" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
 
       <Label style={{ marginTop: 16 }}>hangi gün?</Label>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
-        {nextDays(14).map(d => <Chip key={d.k} label={d.t} on={date === d.k} onPress={() => setDate(date === d.k ? null : d.k)} />)}
-      </ScrollView>
+      <View style={styles.addRow}>
+        <Pressable onPress={() => { tap(); setCalOpen(o => !o); }} style={[styles.input, { flex: 1 }]}>
+          <Text style={[styles.pickTxt, !date && { color: '#B79BCB' }]}>{date ? `📅 ${dayLabel(date)}` : '📅 takvimden seç'}</Text>
+        </Pressable>
+        {date ? <ChromeButton title="✕" onPress={() => { setDate(null); setCalOpen(false); }} style={{ marginLeft: 10 }} /> : null}
+      </View>
+      {calOpen ? <Calendar value={date} onChange={k => { setDate(k); setCalOpen(false); }} /> : null}
 
       <Label style={{ marginTop: 16 }}>saat kaçta?</Label>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
-        {TIMES.map(t => <Chip key={t} label={t} on={time === t} onPress={() => setTime(time === t ? null : t)} />)}
-      </ScrollView>
+      <TextInput
+        value={time} onChangeText={t => setTime(fmtTime(t))} placeholder="🕗 20:30" placeholderTextColor="#B79BCB"
+        keyboardType="number-pad" maxLength={5} style={styles.input}
+      />
+      {timeBad ? <Text style={styles.fieldNote}>saati 20:30 gibi tamamla ⏰</Text> : null}
 
       <Label style={{ marginTop: 16 }}>nerede?</Label>
       <TextInput value={place} onChangeText={setPlace} placeholder="📍 Moda sahil, Kadıköy" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
-      <Text style={styles.hint}>gün, saat ve konum isteğe bağlı ✦ seçtiğine tekrar dokunursan kalkar</Text>
+      <Text style={styles.hint}>gün, saat ve konum isteğe bağlı ✦</Text>
 
       <Label style={{ marginTop: 16 }}>detaylar (ikna et bakalım)</Label>
       <TextInput
@@ -700,8 +761,8 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
       )}
 
       <ChromeButton
-        hot big title="talebi fırlat 🚀" disabled={!title.trim() || !to} style={{ marginTop: 26 }}
-        onPress={() => onSend({ to, catId, title, desc, urgency, image, date, time, place })}
+        hot big title="talebi fırlat 🚀" disabled={!title.trim() || !to || timeBad} style={{ marginTop: 26 }}
+        onPress={() => onSend({ to, catId, title, desc, urgency, image, date, time: time || null, place })}
       />
     </Sheet>
   );
@@ -1371,7 +1432,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.7)', borderWidth: 1.5, borderColor: '#fff',
   },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  hRow: { gap: 8, paddingVertical: 4, marginTop: 6 },
+  pickTxt: { fontSize: 16, fontWeight: '600', color: C.ink },
+  fieldNote: { fontFamily: F.med, fontSize: 11, color: C.hot, marginTop: 6, marginLeft: 6 },
+
+  calHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  calArrow: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  calArrowTxt: { fontFamily: F.black, fontSize: 20, color: C.ink, marginTop: -2 },
+  calTitle: { fontFamily: F.black, fontSize: 15, color: C.ink },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calWeek: { width: '14.2857%', textAlign: 'center', fontFamily: F.med, fontSize: 10, color: C.inkSoft, marginBottom: 6 },
+  calCell: { width: '14.2857%', alignItems: 'center', paddingVertical: 2 },
+  calDay: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  calToday: { borderWidth: 1.5, borderColor: C.ink },
+  calOn: { backgroundColor: C.ink },
+  calDayTxt: { fontFamily: F.bold, fontSize: 13, color: C.ink },
 
   label: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, letterSpacing: 0.6 },
   kicker: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, letterSpacing: 0.6 },

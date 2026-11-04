@@ -13,6 +13,9 @@ npx expo install react react-native expo-status-bar expo-linear-gradient expo-im
 # Font: Unbounded (başlıklar)
 npm install @expo-google-fonts/unbounded
 
+# Supabase (kayıt / giriş)
+npm install @supabase/supabase-js react-native-url-polyfill
+
 # Sürüm uyumsuzluğu kaldıysa düzelt
 npx expo install --fix
 
