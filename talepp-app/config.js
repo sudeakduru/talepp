@@ -15,4 +15,5 @@ export const APP_STORE_URL = '';
 // Apple abonelik kuralı: abonelik ekranında bu iki bağlantı bulunmalı.
 // Kullanım koşulları için Apple'ın standart sözleşmesi kullanılabilir; gizlilik politikası senin olmalı.
 export const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
-export const PRIVACY_URL = '';
+// GitHub Pages'ten yayınlanır: repodaki docs/gizlilik.html (Settings → Pages → main / docs)
+export const PRIVACY_URL = 'https://sudeakduru.github.io/talepp/gizlilik.html';
