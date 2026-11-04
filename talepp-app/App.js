@@ -382,7 +382,7 @@ const AUTH_ERRORS = {
   'Email not confirmed': 'e-postanı henüz onaylamadın 📩 gelen kutuna bak',
 };
 
-function AuthScreen({ onDemo }) {
+function AuthScreen() {
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState('welcome'); // welcome | signup | login
   const login = mode === 'login';
@@ -422,9 +422,12 @@ function AuthScreen({ onDemo }) {
       <Welcome
         colors={THEMES.bubblegum.colors} title="kaydol ✦" onPress={() => setMode('signup')}
         footer={(
-          <Pressable onPress={() => go('login')} hitSlop={10}>
-            <Text style={styles.restore}>zaten hesabın var mı? giriş yap</Text>
-          </Pressable>
+          <>
+            <Pressable onPress={() => go('login')} hitSlop={10}>
+              <Text style={styles.restore}>zaten hesabın var mı? giriş yap</Text>
+            </Pressable>
+            <Text style={styles.gift}>💌 davet kodun mu var? kaydol, sonra "kodla katıl"a bas</Text>
+          </>
         )}
       />
     );
@@ -447,13 +450,7 @@ function AuthScreen({ onDemo }) {
             <Text style={styles.tagline}>{login ? 'hesabına giriş yap 💅' : 'önce seni tanıyalım 🫶'}</Text>
           </View>
 
-          {!supabase ? (
-            <Glass style={{ marginTop: 26 }}>
-              <Text style={styles.info}>kayıt sistemi henüz bağlı değil 🔌{'\n'}supabase.js içine Supabase anahtarlarını ekle.</Text>
-              <ChromeButton hot title="demo olarak devam et" onPress={onDemo} style={{ marginTop: 16 }} />
-            </Glass>
-          ) : (
-            <View style={{ marginTop: 22 }}>
+          <View style={{ marginTop: 22 }}>
               {!login ? (
                 <>
                   <Label>adın</Label>
@@ -489,8 +486,20 @@ function AuthScreen({ onDemo }) {
               <Pressable onPress={() => go(login ? 'signup' : 'login')} hitSlop={10}>
                 <Text style={styles.restore}>{login ? 'hesabın yok mu? kaydol' : 'zaten hesabın var mı? giriş yap'}</Text>
               </Pressable>
-            </View>
-          )}
+              {!login ? (
+                <Text style={styles.fine}>
+                  kaydolarak{' '}
+                  <Text style={styles.link} onPress={() => Linking.openURL(TERMS_URL).catch(() => {})}>kullanım koşullarını</Text>
+                  {PRIVACY_URL ? (
+                    <>
+                      {' '}ve{' '}
+                      <Text style={styles.link} onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}>gizlilik politikasını</Text>
+                    </>
+                  ) : null}
+                  {' '}kabul edersin. uygunsuz içerik ve taciz yasaktır; bildirilen içerikler 24 saat içinde incelenir.
+                </Text>
+              ) : null}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </HoloBg>
@@ -574,7 +583,8 @@ function Welcome({ colors, title, onPress, footer }) {
   );
 }
 
-// Hat kurulumu "hatlarım"dan açılır; onCancel oraya döner
+// Hat kurulumu "hatlarım"dan açılır; onCancel oraya döner.
+// onDone sunucuda hattı açar (promise); kişiler sonra davet koduyla katılır.
 function Onboarding({ onDone, onCancel, myName }) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
@@ -583,8 +593,7 @@ function Onboarding({ onDone, onCancel, myName }) {
   const [cats, setCats] = useState(PRESET_CATS.map((c, i) => ({ ...c, on: i < 6 })));
   const [custom, setCustom] = useState('');
   const [me, setMe] = useState(myName || '');
-  const [friend, setFriend] = useState('');
-  const [friends, setFriends] = useState([]);
+  const [busy, setBusy] = useState(false);
   const colors = THEMES[theme].colors;
 
   const addCustom = () => {
@@ -594,27 +603,20 @@ function Onboarding({ onDone, onCancel, myName }) {
     setCustom('');
     tap();
   };
-  const addFriend = () => {
-    const t = friend.trim();
-    if (!t) return;
-    setFriends(f => [...f, t]);
-    setFriend('');
-    tap();
-  };
-  const finish = () => {
-    const all = [...friends, ...(friend.trim() ? [friend.trim()] : [])];
-    const lineName = name.trim() || 'Talep Hattım';
-    const meM = { id: uid(), name: me.trim() || 'Ben', plan: 'free' };
-    const members = [meM, ...all.map(n => ({ id: uid(), name: n, plan: 'free' }))];
+  const finish = async () => {
     const chosen = cats.filter(c => c.on).map(({ e, t }) => ({ id: uid(), e, t }));
-    success();
-    onDone({
-      line: { name: lineName, emoji, theme, cats: chosen.length ? chosen : [{ id: uid(), e: '✨', t: 'Genel' }], code: makeCode(lineName) },
-      members,
-      meId: meM.id,
-      viewerId: meM.id,
-      requests: [],
-    });
+    setBusy(true);
+    try {
+      await onDone({
+        name: name.trim() || 'Talep Hattım', emoji, theme,
+        cats: chosen.length ? chosen : [{ id: uid(), e: '✨', t: 'Genel' }],
+        memberName: me.trim() || 'Ben',
+      });
+      success();
+    } catch (e) {
+      setBusy(false);
+      oops();
+    }
   };
 
   if (step === 1) {
@@ -677,24 +679,15 @@ function Onboarding({ onDone, onCancel, myName }) {
   }
 
   return (
-    <StepShell step={3} colors={colors} title="kimler bu hatta? 🫶" sub="2 kişi ya da koca bir grup, fark etmez."
-      onBack={() => setStep(2)} onNext={finish} nextTitle="hattı aç 🚀" canNext={friends.length > 0 || !!friend.trim()}>
-      <Label>senin adın</Label>
+    <StepShell step={3} colors={colors} title="bu hatta adın ne olsun? 🫶" sub="hattaki herkes seni bu isimle görecek."
+      onBack={() => setStep(2)} onNext={finish} nextTitle={busy ? 'hat açılıyor... ✦' : 'hattı aç 🚀'} canNext={!busy && !!me.trim()}>
       <TextInput value={me} onChangeText={setMe} placeholder="Kerime" placeholderTextColor="#B79BCB" style={styles.input} maxLength={20} />
-      <Label style={{ marginTop: 22 }}>talep atacağın kişiler</Label>
-      <View style={styles.addRow}>
-        <TextInput
-          value={friend} onChangeText={setFriend} placeholder="Sevgilim, Elif, Zeynep..." placeholderTextColor="#B79BCB"
-          style={[styles.input, { flex: 1 }]} maxLength={20} onSubmitEditing={addFriend} returnKeyType="done" blurOnSubmit={false}
-        />
-        <ChromeButton title="ekle" onPress={addFriend} style={{ marginLeft: 10 }} />
-      </View>
-      <View style={[styles.wrap, { marginTop: 14 }]}>
-        {friends.map((f, i) => (
-          <Chip key={`${f}-${i}`} on label={`${f}  ✕`} onPress={() => setFriends(fs => fs.filter((_, j) => j !== i))} />
-        ))}
-      </View>
-      <Text style={styles.hint}>gerçek davet linki bir sonraki adımda geliyor ✦ şimdilik isimleri yaz yeter.</Text>
+      <Glass style={{ marginTop: 22 }}>
+        <Text style={styles.kicker}>sırada ne var? 💌</Text>
+        <Text style={styles.stepInfo}>
+          hattı açınca sana bir davet kodu vereceğiz. sevgiline ya da kankalarına gönder; Talepp'i indirip kodu yazınca hattına katılırlar.
+        </Text>
+      </Glass>
     </StepShell>
   );
 }
@@ -784,11 +777,12 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [urgency, setUrgency] = useState('onemli');
-  const [image, setImage] = useState(null);
+  const [image, setImage] = useState(null); // { uri, base64 }
   const [date, setDate] = useState(null);
   const [calOpen, setCalOpen] = useState(false);
   const [time, setTime] = useState('');
   const [place, setPlace] = useState('');
+  const [busy, setBusy] = useState(false);
   const timeBad = time.length > 0 && !TIME_RE.test(time);
 
   useEffect(() => {
@@ -796,8 +790,14 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
     setTo(others[0] ? others[0].id : null);
     setCatId(data.line.cats[0] ? data.line.cats[0].id : null);
     setNewCat(null); setTitle(''); setDesc(''); setUrgency('onemli'); setImage(null);
-    setDate(null); setCalOpen(false); setTime(''); setPlace('');
+    setDate(null); setCalOpen(false); setTime(''); setPlace(''); setBusy(false);
   }, [visible]);
+
+  const submit = async () => {
+    setBusy(true);
+    const ok = await onSend({ to, catId, title, desc, urgency, image, date, time: time || null, place });
+    if (!ok) setBusy(false);
+  };
 
   const addCat = () => {
     const t = (newCat || '').trim();
