@@ -4,6 +4,7 @@
     "slug": "talepp",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FFC6EC",
     "ios": {
@@ -22,7 +23,15 @@
       ],
       "expo-status-bar",
       "expo-font",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 220,
+          "backgroundColor": "#D4FF3A"
+        }
+      ]
     ]
   }
 }
