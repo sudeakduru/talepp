@@ -16,7 +16,7 @@ import { supabase } from './supabase';
 import * as api from './api';
 import { registerPush, clearPush, onPushOpen } from './push';
 import { purchasesEnabled, initPurchases, onPlanChange, getPackages, buy, restore, logOutPurchases } from './purchases';
-import { APP_STORE_URL, TERMS_URL, PRIVACY_URL } from './config';
+import { APP_STORE_URL, TERMS_URL, PRIVACY_URL, SUPPORT_EMAIL } from './config';
 
 // ─────────────────────────────────────────────────────────────
 // Sabitler
@@ -1840,6 +1840,8 @@ export default function App() {
   const account = () => Alert.alert(userName || 'hesabım', user.email, [
     { text: store.avatar ? 'profil fotoğrafını değiştir 📸' : 'profil fotoğrafı ekle 📸', onPress: pickAvatar },
     ...(store.avatar ? [{ text: 'fotoğrafı kaldır', onPress: removeAvatar }] : []),
+    { text: 'destek / iletişim ✉️', onPress: () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => Alert.alert('destek', SUPPORT_EMAIL)) },
+    { text: 'gizlilik politikası', onPress: () => Linking.openURL(PRIVACY_URL).catch(() => {}) },
     { text: 'çıkış yap', onPress: signOut },
     { text: 'hesabımı sil', style: 'destructive', onPress: deleteAccount },
     { text: 'kapat', style: 'cancel' },

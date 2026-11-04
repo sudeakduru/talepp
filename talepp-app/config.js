@@ -17,3 +17,6 @@ export const APP_STORE_URL = '';
 export const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 // GitHub Pages'ten yayınlanır: repodaki docs/gizlilik.html (Settings → Pages → main / docs)
 export const PRIVACY_URL = 'https://sudeakduru.github.io/talepp/gizlilik.html';
+
+// Destek ve şikayetler için (gizlilik sayfasında ve App Store sayfasında da bu adres)
+export const SUPPORT_EMAIL = 'talapp.app.destek@gmail.com';
