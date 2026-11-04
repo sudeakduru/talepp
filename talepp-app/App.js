@@ -75,7 +75,7 @@ const REJECT_REASONS = [
 // Haklar haftalık, tüm hatlarda ortak ve her pazartesi yenilenir.
 // Ücretli planlar haftalık ya da (indirimli) aylık faturalanır; App Store'dan fiyat gelirse o gösterilir.
 const PLANS = [
-  { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: 'haftada 3 talep', limit: 3 },
+  { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: 'haftada 2 talep', limit: 2 },
   { k: 'p10', t: 'TalApp+', short: 'PLUS', desc: 'haftada 10 talep', price: { week: '₺39,99', month: '₺99,99' }, limit: 10, badge: 'en popüler 🔥' },
   { k: 'inf', t: 'TalApp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: { week: '₺69,99', month: '₺179,99' }, limit: Infinity, badge: 'kraliçe modu 👑' },
 ];
@@ -189,7 +189,7 @@ const userNameOf = user => (user && user.user_metadata && user.user_metadata.nam
 const quotaOf = (plan, used) => ({ limit: planOf(plan).limit, used });
 function quotaHintOf(plan, left) {
   if (plan === 'free') {
-    return left > 0 ? '🎁 haftada 3 ücretsiz talep · her pazartesi yenilenir' : 'bu haftanın ücretsiz hakları bitti 💅 pazartesi yenilenir ya da TalApp+';
+    return left > 0 ? '🎁 haftada 2 ücretsiz talep · her pazartesi yenilenir' : 'bu haftanın ücretsiz hakları bitti 💅 pazartesi yenilenir ya da TalApp+';
   }
   const p = planOf(plan);
   return p.limit === Infinity ? 'kraliçe modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her pazartesi yenilenir`;
@@ -1111,6 +1111,7 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
 // ─────────────────────────────────────────────────────────────
 function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
   const [sel, setSel] = useState('p10');
+  const [period, setPeriod] = useState('month');
   const [pkgs, setPkgs] = useState(null);
   const [busy, setBusy] = useState(false);
   const live = purchasesEnabled();
@@ -1119,7 +1120,10 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
     if (visible && live) getPackages().then(setPkgs);
   }, [visible]);
 
-  const priceOf = p => (pkgs && pkgs[p.k] ? pkgs[p.k].product.priceString : p.price);
+  // RevenueCat paket adı: p10_week, p10_month, inf_week, inf_month
+  const pkgOf = k => pkgs && pkgs[`${k}_${period}`];
+  const priceOf = p => (pkgOf(p.k) ? pkgOf(p.k).product.priceString : p.price[period]);
+  const per = PERIODS.find(x => x.k === period).per;
 
   const subscribe = async () => {
     if (!live) {
@@ -1127,7 +1131,7 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
       else Alert.alert('çok yakında ✦', 'abonelik App Store sürümünde aktif olacak.');
       return;
     }
-    const pkg = pkgs && pkgs[sel];
+    const pkg = pkgOf(sel);
     if (!pkg) { oops(); return; }
     setBusy(true);
     try {
@@ -1158,11 +1162,19 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
         <HoloText style={styles.payTitle}>TalApp+</HoloText>
         <Text style={styles.paySub}>
           {{
-            free: 'ücretsiz talep hakkını kullandın 😩\nama kraliçeler beklemez.',
-            limit: 'bugünlük talep hakkın doldu 😩\nama kraliçeler beklemez.',
+            free: 'bu haftanın 2 ücretsiz talebi bitti 😩\npazartesiyi bekleme, kraliçeler beklemez.',
+            limit: 'bu haftaki 10 talebin doldu 😩\nsınırsıza geç, kraliçeler beklemez.',
           }[reason] || 'daha çok talep, daha çok drama ✦'}
         </Text>
         <Text style={styles.sheetSub}>abonelik tüm hatlarında geçerli ✦</Text>
+      </View>
+
+      <View style={[styles.segment, { marginTop: 22 }]}>
+        {PERIODS.map(x => (
+          <Pressable key={x.k} onPress={() => { tap(); setPeriod(x.k); }} style={[styles.segBtn, period === x.k && styles.segOn]}>
+            <Text style={[styles.segTxt, period === x.k && { color: '#fff' }]}>{x.t}</Text>
+          </Pressable>
+        ))}
       </View>
 
       {PAID.map(p => {
@@ -1177,7 +1189,7 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={styles.planPrice}>{priceOf(p)}</Text>
-                  <Text style={styles.planPer}>/ ay</Text>
+                  <Text style={styles.planPer}>{per}</Text>
                 </View>
               </View>
             </LinearGradient>
@@ -1195,7 +1207,7 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
         <Text style={styles.restore}>satın alımları geri yükle</Text>
       </Pressable>
       <Text style={styles.fine}>
-        abonelik aylıktır; ücret Apple ID'nden alınır ve dönem bitmeden en az 24 saat önce iptal edilmedikçe otomatik yenilenir.
+        abonelik seçtiğin döneme göre haftalık ya da aylık yenilenir; ücret Apple ID'nden alınır ve dönem bitmeden en az 24 saat önce iptal edilmedikçe otomatik yenilenir.
         App Store hesap ayarlarından istediğin zaman iptal edebilirsin.
       </Text>
       <Text style={styles.fine}>
@@ -1351,7 +1363,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
   };
 
   const plan = store.plan;
-  const { limit, used } = quotaOf(plan, store.freeUsed, myUsedToday(store));
+  const { limit, used } = quotaOf(plan, myUsedWeek(store));
   const left = Math.max(0, limit - used);
   const quotaHint = quotaHintOf(plan, left);
   const limitReason = plan === 'free' ? 'free' : 'limit';
@@ -1423,8 +1435,6 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
       }, image && image.base64);
       // görsel, sunucudan imzalı adres gelene kadar telefondaki dosyadan gösterilir
       setData(d => ({ ...d, requests: [{ ...r, image: image ? image.uri : null }, ...d.requests] }));
-      // ücretsiz hak bir kez harcanınca talep geri çekilse de geri gelmez (sunucu da işaretler)
-      setStore(s => ({ ...s, freeUsed: true }));
     } catch (e) {
       oops();
       return false;
@@ -1559,7 +1569,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
         <Glass style={{ marginTop: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>{plan === 'free' ? 'talep hakkın' : 'bugünkü talep hakkın'}</Text>
+              <Text style={styles.label}>bu haftaki talep hakkın</Text>
               <HoloText style={styles.quotaBig}>{limit === Infinity ? '∞' : `${left}/${limit}`}</HoloText>
               <Text style={styles.quotaHint}>{quotaHint}</Text>
             </View>
@@ -1633,7 +1643,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
 // ─────────────────────────────────────────────────────────────
 function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, reload }) {
   const insets = useSafeAreaInsets();
-  const { limit, used } = quotaOf(store.plan, store.freeUsed, myUsedToday(store));
+  const { limit, used } = quotaOf(store.plan, myUsedWeek(store));
   const left = Math.max(0, limit - used);
   const [joinOpen, setJoinOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -1668,7 +1678,7 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, re
         ) : null}
 
         <Glass style={{ marginTop: 14 }}>
-          <Text style={styles.label}>{store.plan === 'free' ? 'talep hakkın' : 'bugünkü talep hakkın'}</Text>
+          <Text style={styles.label}>bu haftaki talep hakkın</Text>
           <HoloText style={styles.quotaBig}>{limit === Infinity ? '∞' : `${left}/${limit}`}</HoloText>
           <Text style={styles.quotaHint}>{quotaHintOf(store.plan, left)}</Text>
         </Glass>
@@ -1714,7 +1724,7 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, re
 // ─────────────────────────────────────────────────────────────
 // Kök
 // ─────────────────────────────────────────────────────────────
-const EMPTY_STORE = { userId: null, lines: [], activeId: null, plan: 'free', freeUsed: false };
+const EMPTY_STORE = { userId: null, lines: [], activeId: null, plan: 'free' };
 
 export default function App() {
   const [fontsLoaded] = useFonts({ Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black });
@@ -1757,7 +1767,7 @@ export default function App() {
       const res = await api.fetchAll(id);
       if (userRef.current !== id) return; // bu arada çıkış yapıldı
       setStore(s => ({
-        ...s, userId: id, lines: res.lines, freeUsed: res.freeUsed, avatar: res.avatar,
+        ...s, userId: id, lines: res.lines, avatar: res.avatar,
         activeId: res.lines.some(l => l.id === s.activeId) ? s.activeId : null,
       }));
     } catch (e) {

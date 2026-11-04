@@ -1,5 +1,6 @@
-// Talepp+ abonelikleri (RevenueCat). Anahtar girilmediyse ya da Expo Go'da modül yoksa satın alma kapalı kalır.
-// RevenueCat'te entitlement ve offering paketlerinin identifier'ları plan anahtarlarıyla aynı olmalı: p5, p10, inf.
+// TalApp+ abonelikleri (RevenueCat). Anahtar girilmediyse ya da Expo Go'da modül yoksa satın alma kapalı kalır.
+// RevenueCat'te iki entitlement: p10 (haftada 10 talep) ve inf (sınırsız).
+// Offering'deki paketlerin identifier'ları: p10_week, p10_month, inf_week, inf_month.
 import { Platform } from 'react-native';
 import { REVENUECAT_IOS_KEY } from './config';
 
@@ -11,7 +12,7 @@ try {
 }
 
 let configured = false;
-const ORDER = ['inf', 'p10', 'p5']; // birden çok aktifse en büyüğü geçerli
+const ORDER = ['inf', 'p10']; // ikisi de aktifse sınırsız geçerli
 
 export const purchasesEnabled = () => !!Purchases && !!REVENUECAT_IOS_KEY && Platform.OS === 'ios';
 
@@ -44,7 +45,7 @@ export function onPlanChange(cb) {
   return () => Purchases.removeCustomerInfoUpdateListener(listener);
 }
 
-// App Store'daki paketler: { p5, p10, inf }
+// App Store'daki paketler: { p10_week, p10_month, inf_week, inf_month }
 export async function getPackages() {
   if (!purchasesEnabled() || !configured) return null;
   try {
