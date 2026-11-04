@@ -1642,29 +1642,20 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, reload }) {
 // ─────────────────────────────────────────────────────────────
 // Kök
 // ─────────────────────────────────────────────────────────────
-const EMPTY_STORE = { lines: [], activeId: null, plan: 'free', freeUsed: false };
-
-// v1 tek hat tutuyordu ve plan kişi başınaydı; v2'de birden çok hat ve hesap düzeyinde plan var
-function migrate(old) {
-  const id = uid();
-  const me = old.members.find(m => m.id === old.meId);
-  return {
-    lines: [{ ...old, id }],
-    activeId: id,
-    plan: me ? me.plan : 'free',
-    freeUsed: old.requests.some(r => r.from === old.meId),
-  };
-}
+const EMPTY_STORE = { userId: null, lines: [], activeId: null, plan: 'free', freeUsed: false };
 
 export default function App() {
   const [fontsLoaded] = useFonts({ Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black });
   const [store, setStore] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [session, setSession] = useState(supabase ? undefined : null); // undefined: henüz bilinmiyor
-  const [demo, setDemo] = useState(false);
+  const [freshId, setFreshId] = useState(null); // yeni kurulan hat davet ekranıyla açılır
+  const [session, setSession] = useState(undefined); // undefined: henüz bilinmiyor
+  const userId = session ? session.user.id : null;
+  const userRef = useRef(null);
+  userRef.current = userId;
+  const loaded = store !== null;
 
   useEffect(() => {
-    if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => setSession(data.session)).catch(() => setSession(null));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
@@ -1676,10 +1667,6 @@ export default function App() {
       try {
         const raw = await AsyncStorage.getItem(STORE_KEY);
         if (raw) s = JSON.parse(raw);
-        else {
-          const old = await AsyncStorage.getItem(OLD_KEY);
-          if (old) s = migrate(JSON.parse(old));
-        }
       } catch (e) {}
       // uygulama her açılışta "hatlarım"dan başlar
       setStore(s ? { ...s, activeId: null } : EMPTY_STORE);
@@ -1690,45 +1677,111 @@ export default function App() {
     if (store) AsyncStorage.setItem(STORE_KEY, JSON.stringify(store)).catch(() => {});
   }, [store]);
 
+  // Sunucudaki son hali getirir; bağlantı yoksa telefondaki kopya görünmeye devam eder
+  const reload = async () => {
+    const id = userRef.current;
+    if (!id) return;
+    try {
+      const res = await api.fetchAll(id);
+      if (userRef.current !== id) return; // bu arada çıkış yapıldı
+      setStore(s => ({
+        ...s, userId: id, lines: res.lines, freeUsed: res.freeUsed,
+        activeId: res.lines.some(l => l.id === s.activeId) ? s.activeId : null,
+      }));
+    } catch (e) {
+      // çevrimdışı
+    }
+  };
+
+  // Giriş yapılınca: veriyi çek, bildirim adresini kaydet, aboneliği öğren, canlı güncellemeyi dinle
+  useEffect(() => {
+    if (!userId || !loaded) return;
+    // başka hesabın telefondaki kopyası görünmesin
+    setStore(s => (s.userId === userId ? s : { ...EMPTY_STORE, userId }));
+    reload();
+    registerPush();
+
+    let offPlan = () => {};
+    initPurchases(userId).then(k => {
+      if (!purchasesEnabled()) return; // anahtar yokken plan telefonda kalır (geliştirmede test aboneliği)
+      setStore(s => ({ ...s, plan: k }));
+      offPlan = onPlanChange(p => setStore(s => ({ ...s, plan: p })));
+    });
+
+    let timer = null;
+    const offLive = api.subscribeChanges(() => { clearTimeout(timer); timer = setTimeout(reload, 400); });
+    const appSub = AppState.addEventListener('change', st => { if (st === 'active') reload(); });
+    const offPush = onPushOpen(lineId => {
+      setAdding(false);
+      reload().then(() => setStore(s => ({ ...s, activeId: lineId })));
+    });
+    return () => { offPlan(); offLive(); appSub.remove(); offPush(); clearTimeout(timer); };
+  }, [userId, loaded]);
+
   if (!fontsLoaded || !store || session === undefined) return <View style={{ flex: 1, backgroundColor: '#FFC6EC' }} />;
 
-  if (!session && !demo) {
+  if (!session) {
     return (
       <SafeAreaProvider>
         <StatusBar style="dark" />
-        <AuthScreen onDemo={() => setDemo(true)} />
+        <AuthScreen />
       </SafeAreaProvider>
     );
   }
 
-  const user = session && session.user;
+  const user = session.user;
+  const userName = userNameOf(user);
   const active = store.lines.find(l => l.id === store.activeId);
 
-  // Hatlar şimdilik sadece bu telefonda; çıkış yapınca duruyorlar, hesap silinince temizleniyor
-  const deleteAccount = () => Alert.alert('hesabın silinsin mi? 🥺', 'hesabın ve profil bilgilerin kalıcı olarak silinir, bu telefondaki hatlar da temizlenir. aynı hesapla Yumi kullanıyorsan oradaki hesabın da silinir.', [
-    { text: 'vazgeç', style: 'cancel' },
-    {
-      text: 'hesabımı sil', style: 'destructive',
-      onPress: async () => {
-        const { error } = await supabase.rpc('delete_user');
-        if (error) { Alert.alert('olmadı 😵', 'hesap silinemedi, internetini kontrol edip tekrar dener misin?'); return; }
-        setStore(EMPTY_STORE);
-        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+  const signOut = async () => {
+    await clearPush();
+    await logOutPurchases();
+    setStore(EMPTY_STORE);
+    await supabase.auth.signOut().catch(() => {});
+  };
+  const deleteAccount = () => Alert.alert(
+    'hesabın silinsin mi? 🥺',
+    'hesabın, profilin ve kurduğun hatlar kalıcı olarak silinir. aynı hesapla Yumi kullanıyorsan oradaki hesabın da silinir.',
+    [
+      { text: 'vazgeç', style: 'cancel' },
+      {
+        text: 'hesabımı sil', style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase.rpc('delete_user');
+          if (error) { oops(); return; }
+          await logOutPurchases();
+          setStore(EMPTY_STORE);
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        },
       },
-    },
-  ]);
-  const account = () => Alert.alert((user.user_metadata && user.user_metadata.name) || 'hesabım', user.email, [
-    { text: 'çıkış yap', onPress: () => supabase.auth.signOut().catch(() => {}) },
+    ],
+  );
+  const account = () => Alert.alert(userName || 'hesabım', user.email, [
+    { text: 'çıkış yap', onPress: signOut },
     { text: 'hesabımı sil', style: 'destructive', onPress: deleteAccount },
     { text: 'kapat', style: 'cancel' },
   ]);
 
-  const addLine = line => {
-    const id = uid();
-    setStore(s => ({ ...s, lines: [...s.lines, { ...line, id }], activeId: id }));
+  // Hata fırlatırsa Onboarding uyarı gösterir
+  const addLine = async line => {
+    const id = await api.createLine(line, makeCode);
+    await reload();
+    setFreshId(id);
+    setStore(s => ({ ...s, activeId: id }));
     setAdding(false);
   };
-  // Home açık hattı bununla günceller; null verirse hat silinir
+  const joinLine = async (code, name) => {
+    try {
+      const id = await api.joinLine(code, name);
+      if (!id) return 'notfound';
+      await reload();
+      setStore(s => ({ ...s, activeId: id }));
+      return 'ok';
+    } catch (e) {
+      return 'error';
+    }
+  };
+  // Home açık hattı bununla günceller; null verirse hat listeden çıkar
   const setLine = fn => setStore(s => {
     const cur = s.lines.find(l => l.id === s.activeId);
     if (!cur) return s;
@@ -1737,23 +1790,22 @@ export default function App() {
     return { ...s, lines: s.lines.map(l => (l.id === cur.id ? next : l)) };
   });
 
-  const userName = (user && user.user_metadata && user.user_metadata.name) || '';
-
   let screen;
   if (adding) {
-    screen = <Onboarding onDone={addLine} onCancel={() => setAdding(false)} myName={meName(store.lines[0]) || userName} />;
+    screen = <Onboarding onDone={addLine} onCancel={() => setAdding(false)} myName={userName || meName(store.lines[0])} />;
   } else if (active) {
     screen = (
       <Home
-        key={active.id} data={active} setData={setLine} store={store} setStore={setStore}
-        onHome={() => setStore(s => ({ ...s, activeId: null }))}
+        key={active.id} data={active} setData={setLine} store={store} setStore={setStore} reload={reload}
+        fresh={freshId === active.id} onPlan={k => setStore(s => ({ ...s, plan: k }))}
+        onHome={() => { setFreshId(null); setStore(s => ({ ...s, activeId: null })); }}
       />
     );
   } else {
     screen = (
       <Lines
-        store={store} userName={userName} onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)}
-        onAccount={user ? account : null}
+        store={store} userName={userName} reload={reload} onAccount={account}
+        onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)} onJoin={joinLine}
       />
     );
   }
@@ -1993,6 +2045,16 @@ const styles = StyleSheet.create({
   planBadge: { position: 'absolute', top: -12, right: 16 },
   restore: { fontFamily: F.med, fontSize: 12, color: C.ink, textAlign: 'center', marginTop: 16, textDecorationLine: 'underline' },
   fine: { fontSize: 11, color: C.inkSoft, textAlign: 'center', marginTop: 14, lineHeight: 16 },
+  link: { color: C.ink, fontWeight: '700', textDecorationLine: 'underline' },
+
+  stepInfo: { fontFamily: F.med, fontSize: 13, color: C.ink, marginTop: 8, lineHeight: 20 },
+  stepRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  stepEmoji: { fontSize: 22, width: 36 },
+  stepTxt: { flex: 1, fontFamily: F.med, fontSize: 12, color: C.ink, lineHeight: 18 },
+  codeInput: { fontFamily: F.black, fontSize: 20, letterSpacing: 2, textAlign: 'center' },
+  inviteChip: { paddingLeft: 14, borderStyle: 'dashed', borderColor: C.hot },
+  safetyRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 22, paddingHorizontal: 6 },
+  safetyTxt: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, textDecorationLine: 'underline' },
 
   codeBox: { marginTop: 22, borderRadius: 24, paddingVertical: 20, paddingHorizontal: 30, borderWidth: 2, borderColor: C.ink },
   code: { fontFamily: F.black, fontSize: 28, color: C.ink, letterSpacing: 3 },
