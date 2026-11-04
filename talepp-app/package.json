@@ -11,6 +11,7 @@
     "@expo-google-fonts/unbounded": "^0.4.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-masked-view/masked-view": "0.3.2",
+    "@supabase/supabase-js": "^2.118.0",
     "expo": "^58.0.23",
     "expo-font": "~58.0.11",
     "expo-haptics": "~58.0.7",
@@ -19,6 +20,7 @@
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
     "react-native": "0.88.1",
-    "react-native-safe-area-context": "~5.11.1"
+    "react-native-safe-area-context": "~5.11.1",
+    "react-native-url-polyfill": "^4.0.0"
   }
 }
