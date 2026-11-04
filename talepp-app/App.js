@@ -405,7 +405,8 @@ function StepShell({ step, colors, title, sub, onBack, onNext, nextTitle, canNex
   );
 }
 
-function Onboarding({ onDone }) {
+// onCancel: zaten hattı olan biri yeni hat kuruyorsa "hatlarım"a dönüş
+function Onboarding({ onDone, onCancel, myName, giftLeft }) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
@@ -413,7 +414,7 @@ function Onboarding({ onDone }) {
   const [theme, setTheme] = useState('bubblegum');
   const [cats, setCats] = useState(PRESET_CATS.map((c, i) => ({ ...c, on: i < 6 })));
   const [custom, setCustom] = useState('');
-  const [me, setMe] = useState('');
+  const [me, setMe] = useState(myName || '');
   const [friend, setFriend] = useState('');
   const [friends, setFriends] = useState([]);
   const colors = THEMES[theme].colors;
@@ -435,9 +436,8 @@ function Onboarding({ onDone }) {
   const finish = () => {
     const all = [...friends, ...(friend.trim() ? [friend.trim()] : [])];
     const lineName = name.trim() || 'Talep Hattım';
-    const day = todayKey();
-    const meM = { id: uid(), name: me.trim() || 'Ben', plan: 'free', joinedDay: day };
-    const members = [meM, ...all.map(n => ({ id: uid(), name: n, plan: 'free', joinedDay: day }))];
+    const meM = { id: uid(), name: me.trim() || 'Ben', plan: 'free' };
+    const members = [meM, ...all.map(n => ({ id: uid(), name: n, plan: 'free' }))];
     const chosen = cats.filter(c => c.on).map(({ e, t }) => ({ id: uid(), e, t }));
     success();
     onDone({
@@ -454,6 +454,11 @@ function Onboarding({ onDone }) {
       <HoloBg colors={colors}>
         <View style={{ flex: 1, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 22, paddingHorizontal: 24, justifyContent: 'space-between' }}>
           <View style={{ alignItems: 'center' }}>
+            {onCancel ? (
+              <Pressable onPress={onCancel} hitSlop={12} style={{ alignSelf: 'flex-start', marginBottom: 14 }}>
+                <Text style={styles.back}>← hatlarım</Text>
+              </Pressable>
+            ) : null}
             <Sticker text="✦ yeni nesil talep hattı ✦" rotate="-3deg" />
             <HoloText style={styles.logo}>Talepp</HoloText>
             <Text style={styles.tagline}>sevgilin & kankaların için{'\n'}kendi talep hattını kur 💅</Text>
@@ -465,7 +470,7 @@ function Onboarding({ onDone }) {
           </View>
           <View>
             <ChromeButton hot big title="hattımı kur ✦" onPress={() => setStep(1)} />
-            <Text style={styles.gift}>🎁 ilk gün 1 talep bizden</Text>
+            {giftLeft ? <Text style={styles.gift}>🎁 ilk talep bizden</Text> : null}
           </View>
         </View>
       </HoloBg>
@@ -567,6 +572,7 @@ function RequestCard({ r, cat, fromName, toName, onPress }) {
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.cardCat}>{trUpper(cat ? cat.t : 'genel')}{urgent ? '  ·  🚨 ACİL' : ''}</Text>
           <Text style={styles.cardTitle} numberOfLines={2}>{r.title}</Text>
+          {whenText(r) ? <Text style={styles.cardWhen} numberOfLines={1}>{whenText(r)}</Text> : null}
           <Text style={styles.cardMeta}>{fromName} → {toName} · {timeAgo(r.createdAt)}</Text>
         </View>
         {r.image ? <Image source={{ uri: r.image }} style={styles.cardThumb} /> : null}
@@ -579,21 +585,34 @@ function RequestCard({ r, cat, fromName, toName, onPress }) {
 // ─────────────────────────────────────────────────────────────
 // Yeni talep
 // ─────────────────────────────────────────────────────────────
-function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, left }) {
+function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAddCat, left }) {
   const others = data.members.filter(m => m.id !== viewer.id);
   const [to, setTo] = useState(null);
   const [catId, setCatId] = useState(null);
+  const [newCat, setNewCat] = useState(null); // null: kutu kapalı
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [urgency, setUrgency] = useState('onemli');
   const [image, setImage] = useState(null);
+  const [date, setDate] = useState(null);
+  const [time, setTime] = useState(null);
+  const [place, setPlace] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     setTo(others[0] ? others[0].id : null);
     setCatId(data.line.cats[0] ? data.line.cats[0].id : null);
-    setTitle(''); setDesc(''); setUrgency('onemli'); setImage(null);
+    setNewCat(null); setTitle(''); setDesc(''); setUrgency('onemli'); setImage(null);
+    setDate(null); setTime(null); setPlace('');
   }, [visible]);
+
+  const addCat = () => {
+    const t = (newCat || '').trim();
+    if (!t) return;
+    setCatId(onAddCat(t));
+    setNewCat(null);
+    tap();
+  };
 
   const pick = async () => {
     try {
@@ -622,10 +641,34 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, left 
       <Label style={{ marginTop: 20 }}>başlık</Label>
       <View style={styles.wrap}>
         {data.line.cats.map(c => <Chip key={c.id} label={`${c.e} ${c.t}`} on={catId === c.id} onPress={() => setCatId(c.id)} />)}
+        <Chip label="＋ yeni başlık" on={newCat !== null} onPress={() => setNewCat(newCat === null ? '' : null)} />
       </View>
+      {newCat !== null ? (
+        <View style={styles.addRow}>
+          <TextInput
+            value={newCat} onChangeText={setNewCat} placeholder="yeni başlık (örn. Boba 🧋)" placeholderTextColor="#B79BCB"
+            style={[styles.input, { flex: 1 }]} maxLength={24} autoFocus onSubmitEditing={addCat} returnKeyType="done"
+          />
+          <ChromeButton title="ekle" onPress={addCat} style={{ marginLeft: 10 }} />
+        </View>
+      ) : null}
 
       <Label style={{ marginTop: 20 }}>ne istiyorsun?</Label>
       <TextInput value={title} onChangeText={setTitle} placeholder="cumartesi sushi date 🍣" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
+
+      <Label style={{ marginTop: 16 }}>hangi gün?</Label>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
+        {nextDays(14).map(d => <Chip key={d.k} label={d.t} on={date === d.k} onPress={() => setDate(date === d.k ? null : d.k)} />)}
+      </ScrollView>
+
+      <Label style={{ marginTop: 16 }}>saat kaçta?</Label>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hRow}>
+        {TIMES.map(t => <Chip key={t} label={t} on={time === t} onPress={() => setTime(time === t ? null : t)} />)}
+      </ScrollView>
+
+      <Label style={{ marginTop: 16 }}>nerede?</Label>
+      <TextInput value={place} onChangeText={setPlace} placeholder="📍 Moda sahil, Kadıköy" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
+      <Text style={styles.hint}>gün, saat ve konum isteğe bağlı ✦ seçtiğine tekrar dokunursan kalkar</Text>
 
       <Label style={{ marginTop: 16 }}>detaylar (ikna et bakalım)</Label>
       <TextInput
@@ -658,7 +701,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, left 
 
       <ChromeButton
         hot big title="talebi fırlat 🚀" disabled={!title.trim() || !to} style={{ marginTop: 26 }}
-        onPress={() => onSend({ to, catId, title, desc, urgency, image })}
+        onPress={() => onSend({ to, catId, title, desc, urgency, image, date, time, place })}
       />
     </Sheet>
   );
@@ -770,6 +813,21 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
           <LinearGradient colors={['#9DFFD5', '#B5DEFF', '#FFB5E8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.approvedBanner}>
             <Text style={styles.approvedTxt}>💖 ONAYLANDI 💖</Text>
           </LinearGradient>
+        ) : null}
+
+        {r.date || r.time || r.place ? (
+          <Glass style={{ marginTop: 16 }}>
+            {r.date || r.time ? (
+              <Text style={styles.whenTxt}>{[r.date && `📅 ${dayLabel(r.date)}`, r.time && `🕗 ${r.time}`].filter(Boolean).join('    ')}</Text>
+            ) : null}
+            {r.place ? (
+              <Pressable onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(r.place)}`).catch(() => {})}>
+                <Text style={[styles.whenTxt, (r.date || r.time) ? { marginTop: 8 } : null]}>
+                  📍 {r.place}  <Text style={styles.mapLink}>haritada aç ↗</Text>
+                </Text>
+              </Pressable>
+            ) : null}
+          </Glass>
         ) : null}
 
         {r.desc ? <Glass style={{ marginTop: 16 }}><Text style={styles.desc}>{r.desc}</Text></Glass> : null}
