@@ -532,18 +532,13 @@ function StepShell({ step, colors, title, sub, onBack, onNext, nextTitle, canNex
   );
 }
 
-// Karşılama: kayıttan önce ve yeni hat kurarken aynı ekran, sadece buton farklı
-function Welcome({ colors, title, onPress, onBack, footer }) {
+// Kayıttan önceki karşılama ekranı
+function Welcome({ colors, title, onPress, footer }) {
   const insets = useSafeAreaInsets();
   return (
     <HoloBg colors={colors}>
       <View style={{ flex: 1, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 22, paddingHorizontal: 24, justifyContent: 'space-between' }}>
         <View style={{ alignItems: 'center' }}>
-          {onBack ? (
-            <Pressable onPress={onBack} hitSlop={12} style={{ alignSelf: 'flex-start', marginBottom: 14 }}>
-              <Text style={styles.back}>← hatlarım</Text>
-            </Pressable>
-          ) : null}
           <Sticker text="✦ yeni nesil talep hattı ✦" rotate="-3deg" />
           <HoloText style={styles.logo}>Talepp</HoloText>
           <Text style={styles.tagline}>sevgilin & kankaların için{'\n'}kendi talep hattını kur 💅</Text>
@@ -562,10 +557,9 @@ function Welcome({ colors, title, onPress, onBack, footer }) {
   );
 }
 
-// onCancel: zaten hattı olan biri yeni hat kuruyorsa "hatlarım"a dönüş
-// startStep 1: kayıttan yeni gelen biri karşılamayı zaten gördü
-function Onboarding({ onDone, onCancel, myName, giftLeft, startStep }) {
-  const [step, setStep] = useState(startStep || 0);
+// Hat kurulumu "hatlarım"dan açılır; onCancel oraya döner
+function Onboarding({ onDone, onCancel, myName }) {
+  const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState('💖');
   const [theme, setTheme] = useState('bubblegum');
@@ -606,19 +600,10 @@ function Onboarding({ onDone, onCancel, myName, giftLeft, startStep }) {
     });
   };
 
-  if (step === 0) {
-    return (
-      <Welcome
-        colors={colors} title="hattımı kur ✦" onPress={() => setStep(1)} onBack={onCancel}
-        footer={giftLeft ? <Text style={styles.gift}>🎁 ilk talep bizden</Text> : null}
-      />
-    );
-  }
-
   if (step === 1) {
     return (
       <StepShell step={1} colors={colors} title="hattına bir isim ver ✦" sub="mesela: Susu Talep Hattı, Kızlar Meclisi, Aşk Bakanlığı 🏛️"
-        onBack={() => setStep(0)} onNext={() => setStep(2)} nextTitle="devam →" canNext>
+        onBack={onCancel} onNext={() => setStep(2)} nextTitle="devam →" canNext>
         <TextInput
           value={name} onChangeText={setName} placeholder="Susu Talep Hattı" placeholderTextColor="#B79BCB"
           style={styles.input} maxLength={32} returnKeyType="next" onSubmitEditing={() => setStep(2)}
@@ -1373,7 +1358,7 @@ function Home({ data, setData, store, setStore, onHome }) {
 // Ana sayfa: tüm hatlar
 // ─────────────────────────────────────────────────────────────
 // onAccount: giriş yapılmışsa hesap menüsü (demo modunda yok)
-function Lines({ store, onOpen, onNew, onAccount }) {
+function Lines({ store, userName, onOpen, onNew, onAccount }) {
   const insets = useSafeAreaInsets();
   const { limit, used } = quotaOf(store.plan, store.freeUsed, myUsedToday(store));
   const left = Math.max(0, limit - used);
@@ -1385,7 +1370,7 @@ function Lines({ store, onOpen, onNew, onAccount }) {
       >
         <View style={styles.homeHead}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.kicker}>ana sayfa ✦</Text>
+            <Text style={styles.kicker}>{userName ? `selam ${userName} 👋` : 'ana sayfa ✦'}</Text>
             <HoloText style={styles.hubTitle}>hatlarım</HoloText>
           </View>
           {onAccount ? (
@@ -1400,6 +1385,14 @@ function Lines({ store, onOpen, onNew, onAccount }) {
           <HoloText style={styles.quotaBig}>{limit === Infinity ? '∞' : `${left}/${limit}`}</HoloText>
           <Text style={styles.quotaHint}>{quotaHintOf(store.plan, left)}</Text>
         </Glass>
+
+        {store.lines.length === 0 ? (
+          <Glass style={{ alignItems: 'center', paddingVertical: 34, marginTop: 18 }}>
+            <Text style={{ fontSize: 54 }}>🫧</Text>
+            <Text style={styles.emptyTitle}>henüz hattın yok</Text>
+            <Text style={styles.emptySub}>aşağıdan ilk talep hattını kur ✦{'\n'}sevgilin, kankaların, ev arkadaşların...</Text>
+          </Glass>
+        ) : null}
 
         {store.lines.map(l => {
           const pending = l.requests.filter(r => r.to === l.meId && OPEN.includes(r.status)).length;
@@ -1468,7 +1461,8 @@ export default function App() {
           if (old) s = migrate(JSON.parse(old));
         }
       } catch (e) {}
-      setStore(s || EMPTY_STORE);
+      // uygulama her açılışta "hatlarım"dan başlar
+      setStore(s ? { ...s, activeId: null } : EMPTY_STORE);
     })();
   }, []);
 
@@ -1523,17 +1517,11 @@ export default function App() {
     return { ...s, lines: s.lines.map(l => (l.id === cur.id ? next : l)) };
   });
 
+  const userName = (user && user.user_metadata && user.user_metadata.name) || '';
+
   let screen;
-  if (!store.lines.length || adding) {
-    screen = (
-      <Onboarding
-        onDone={addLine}
-        onCancel={store.lines.length ? () => setAdding(false) : null}
-        myName={meName(store.lines[0]) || (user && user.user_metadata && user.user_metadata.name) || ''}
-        giftLeft={store.plan === 'free' && !store.freeUsed}
-        startStep={user && !store.lines.length ? 1 : 0}
-      />
-    );
+  if (adding) {
+    screen = <Onboarding onDone={addLine} onCancel={() => setAdding(false)} myName={meName(store.lines[0]) || userName} />;
   } else if (active) {
     screen = (
       <Home
@@ -1544,7 +1532,7 @@ export default function App() {
   } else {
     screen = (
       <Lines
-        store={store} onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)}
+        store={store} userName={userName} onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)}
         onAccount={user ? account : null}
       />
     );
