@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, Pressable, ScrollView, StyleSheet, Animated, Easing,
-  Image, Modal, Share, Alert, KeyboardAvoidingView, Platform, Dimensions, Linking,
+  Image, Modal, Share, Alert, KeyboardAvoidingView, Platform, Dimensions, Linking, Keyboard,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black } from '@expo-google-fonts/unbounded';
+import { supabase } from './supabase';
 
 // ─────────────────────────────────────────────────────────────
 // Sabitler
@@ -352,6 +353,110 @@ function Sheet({ visible, onClose, colors, children }) {
         </KeyboardAvoidingView>
       </HoloBg>
     </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Kayıt / giriş (Supabase: e-posta + şifre; kayıtta ad ve yaş)
+// ─────────────────────────────────────────────────────────────
+const AUTH_ERRORS = {
+  'Invalid login credentials': 'e-posta ya da şifre hatalı 🙈',
+  'User already registered': 'bu e-posta zaten kayıtlı ✦ "giriş yap"a geç',
+  'Email not confirmed': 'e-postanı henüz onaylamadın 📩 gelen kutuna bak',
+};
+
+function AuthScreen({ onDemo }) {
+  const insets = useSafeAreaInsets();
+  const [login, setLogin] = useState(false);
+  const [name, setName] = useState('');
+  const [age, setAge] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const submit = async () => {
+    setMsg('');
+    const a = parseInt(age, 10);
+    if (!login && !name.trim()) return setMsg('adını yazar mısın? 🫶');
+    if (!login && !(a >= 13 && a <= 120)) return setMsg('Talepp 13 yaş ve üstü için 💅 yaşını kontrol eder misin?');
+    if (!/\S+@\S+\.\S+/.test(email.trim())) return setMsg('geçerli bir e-posta yaz ✉️');
+    if (password.length < 6) return setMsg('şifre en az 6 karakter olmalı 🔐');
+    Keyboard.dismiss();
+    setBusy(true);
+    const res = login
+      ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      : await supabase.auth.signUp({ email: email.trim(), password, options: { data: { name: name.trim(), age: a } } });
+    setBusy(false);
+    if (res.error) return setMsg(AUTH_ERRORS[res.error.message] || 'bir şeyler ters gitti 😵 internetini kontrol edip tekrar dener misin?');
+    // oturum açıldıysa App'teki onAuthStateChange ekranı kendisi değiştirir
+    if (!res.data.session) {
+      setLogin(true);
+      setMsg('📩 e-postana onay bağlantısı gönderdik. onaylayınca buradan giriş yap.');
+    }
+  };
+
+  return (
+    <HoloBg colors={THEMES.bubblegum.colors}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={{ paddingTop: insets.top + 28, paddingHorizontal: 22, paddingBottom: insets.bottom + 30, flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={{ alignItems: 'center' }}>
+            <Sticker text={login ? '✦ tekrar hoş geldin ✦' : '✦ yeni nesil talep hattı ✦'} rotate="-3deg" />
+            <HoloText style={styles.logo}>Talepp</HoloText>
+            <Text style={styles.tagline}>{login ? 'hesabına giriş yap 💅' : 'önce seni tanıyalım 🫶'}</Text>
+          </View>
+
+          {!supabase ? (
+            <Glass style={{ marginTop: 26 }}>
+              <Text style={styles.info}>kayıt sistemi henüz bağlı değil 🔌{'\n'}supabase.js içine Supabase anahtarlarını ekle.</Text>
+              <ChromeButton hot title="demo olarak devam et" onPress={onDemo} style={{ marginTop: 16 }} />
+            </Glass>
+          ) : (
+            <View style={{ marginTop: 22 }}>
+              {!login ? (
+                <>
+                  <Label>adın</Label>
+                  <TextInput
+                    value={name} onChangeText={setName} placeholder="Kerime" placeholderTextColor="#B79BCB"
+                    style={styles.input} maxLength={20} textContentType="givenName"
+                  />
+                  <Label style={{ marginTop: 16 }}>yaşın</Label>
+                  <TextInput
+                    value={age} onChangeText={t => setAge(t.replace(/\D/g, ''))} placeholder="22" placeholderTextColor="#B79BCB"
+                    style={styles.input} maxLength={3} keyboardType="number-pad"
+                  />
+                </>
+              ) : null}
+              <Label style={{ marginTop: login ? 0 : 16 }}>e-posta</Label>
+              <TextInput
+                value={email} onChangeText={setEmail} placeholder="kerime@mail.com" placeholderTextColor="#B79BCB"
+                style={styles.input} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress"
+              />
+              <Label style={{ marginTop: 16 }}>şifre</Label>
+              <TextInput
+                value={password} onChangeText={setPassword} placeholder="en az 6 karakter" placeholderTextColor="#B79BCB"
+                style={styles.input} secureTextEntry textContentType={login ? 'password' : 'newPassword'}
+              />
+
+              {msg ? <Glass style={{ marginTop: 16 }}><Text style={styles.info}>{msg}</Text></Glass> : null}
+
+              <ChromeButton
+                hot big disabled={busy} style={{ marginTop: 24 }}
+                title={busy ? 'bekle bi sn... ✦' : login ? 'giriş yap ✦' : 'kaydol ✦'}
+                onPress={submit}
+              />
+              <Pressable onPress={() => { tap(); setLogin(l => !l); setMsg(''); }} hitSlop={10}>
+                <Text style={styles.restore}>{login ? 'hesabın yok mu? kaydol' : 'zaten hesabın var mı? giriş yap'}</Text>
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </HoloBg>
   );
 }
 
@@ -1236,7 +1341,8 @@ function Home({ data, setData, store, setStore, onHome }) {
 // ─────────────────────────────────────────────────────────────
 // Ana sayfa: tüm hatlar
 // ─────────────────────────────────────────────────────────────
-function Lines({ store, onOpen, onNew }) {
+// onAccount: giriş yapılmışsa hesap menüsü (demo modunda yok)
+function Lines({ store, onOpen, onNew, onAccount }) {
   const insets = useSafeAreaInsets();
   const { limit, used } = quotaOf(store.plan, store.freeUsed, myUsedToday(store));
   const left = Math.max(0, limit - used);
@@ -1246,8 +1352,17 @@ function Lines({ store, onOpen, onNew }) {
         contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: insets.bottom + 130 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.kicker}>ana sayfa ✦</Text>
-        <HoloText style={styles.hubTitle}>hatlarım</HoloText>
+        <View style={styles.homeHead}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.kicker}>ana sayfa ✦</Text>
+            <HoloText style={styles.hubTitle}>hatlarım</HoloText>
+          </View>
+          {onAccount ? (
+            <Pressable onPress={() => { tap(); onAccount(); }} hitSlop={10} style={styles.gear}>
+              <Text style={{ fontSize: 18 }}>👤</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         <Glass style={{ marginTop: 14 }}>
           <Text style={styles.label}>{store.plan === 'free' ? 'talep hakkın' : 'bugünkü talep hakkın'}</Text>
@@ -1301,6 +1416,15 @@ export default function App() {
   const [fontsLoaded] = useFonts({ Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black });
   const [store, setStore] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [session, setSession] = useState(supabase ? undefined : null); // undefined: henüz bilinmiyor
+  const [demo, setDemo] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => setSession(data.session)).catch(() => setSession(null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -1321,9 +1445,38 @@ export default function App() {
     if (store) AsyncStorage.setItem(STORE_KEY, JSON.stringify(store)).catch(() => {});
   }, [store]);
 
-  if (!fontsLoaded || !store) return <View style={{ flex: 1, backgroundColor: '#FFC6EC' }} />;
+  if (!fontsLoaded || !store || session === undefined) return <View style={{ flex: 1, backgroundColor: '#FFC6EC' }} />;
 
+  if (!session && !demo) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <AuthScreen onDemo={() => setDemo(true)} />
+      </SafeAreaProvider>
+    );
+  }
+
+  const user = session && session.user;
   const active = store.lines.find(l => l.id === store.activeId);
+
+  // Hatlar şimdilik sadece bu telefonda; çıkış yapınca duruyorlar, hesap silinince temizleniyor
+  const deleteAccount = () => Alert.alert('hesabın silinsin mi? 🥺', 'hesabın ve profil bilgilerin kalıcı olarak silinir, bu telefondaki hatlar da temizlenir.', [
+    { text: 'vazgeç', style: 'cancel' },
+    {
+      text: 'hesabımı sil', style: 'destructive',
+      onPress: async () => {
+        const { error } = await supabase.rpc('delete_user');
+        if (error) { Alert.alert('olmadı 😵', 'hesap silinemedi, internetini kontrol edip tekrar dener misin?'); return; }
+        setStore(EMPTY_STORE);
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      },
+    },
+  ]);
+  const account = () => Alert.alert((user.user_metadata && user.user_metadata.name) || 'hesabım', user.email, [
+    { text: 'çıkış yap', onPress: () => supabase.auth.signOut().catch(() => {}) },
+    { text: 'hesabımı sil', style: 'destructive', onPress: deleteAccount },
+    { text: 'kapat', style: 'cancel' },
+  ]);
 
   const addLine = line => {
     const id = uid();
@@ -1345,7 +1498,7 @@ export default function App() {
       <Onboarding
         onDone={addLine}
         onCancel={store.lines.length ? () => setAdding(false) : null}
-        myName={meName(store.lines[0])}
+        myName={meName(store.lines[0]) || (user && user.user_metadata && user.user_metadata.name) || ''}
         giftLeft={store.plan === 'free' && !store.freeUsed}
       />
     );
@@ -1357,7 +1510,12 @@ export default function App() {
       />
     );
   } else {
-    screen = <Lines store={store} onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)} />;
+    screen = (
+      <Lines
+        store={store} onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)}
+        onAccount={user ? account : null}
+      />
+    );
   }
 
   return (
