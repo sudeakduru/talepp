@@ -149,6 +149,9 @@ create policy "Talepp: talebin iki tarafı günceller" on public.talepp_requests
   for update using (public.talepp_is_member(line_id) and (select auth.uid()) in (from_id, to_id));
 create policy "Talepp: gönderen geri çeker" on public.talepp_requests
   for delete using ((select auth.uid()) = from_id);
+-- talep gönderildikten sonra yalnızca durumu ve geçmişi değişir
+revoke update on public.talepp_requests from anon, authenticated;
+grant update (status, history) on public.talepp_requests to authenticated;
 
 create policy "Talepp: kendi engellerini gör" on public.talepp_blocks
   for select using ((select auth.uid()) = blocker);
