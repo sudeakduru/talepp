@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, Pressable, ScrollView, StyleSheet, Animated, Easing,
-  Image, Modal, Share, Alert, KeyboardAvoidingView, Platform, Dimensions,
+  Image, Modal, Share, Alert, KeyboardAvoidingView, Platform, Dimensions, Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,7 +15,8 @@ import { useFonts, Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black } 
 // ─────────────────────────────────────────────────────────────
 // Sabitler
 // ─────────────────────────────────────────────────────────────
-const STORE_KEY = 'talepp:v1';
+const STORE_KEY = 'talepp:v2';
+const OLD_KEY = 'talepp:v1';
 
 const F = { med: 'Unbounded_500Medium', bold: 'Unbounded_700Bold', black: 'Unbounded_900Black' };
 
@@ -60,9 +61,10 @@ const REJECT_REASONS = [
   'bunu dün de istedin 👀', 'sistem şu an kapalı 🔌', 'sevgimle reddediyorum 💔',
 ];
 
-// Ücretsiz plan: sadece hattı kurduğun ilk gün 1 talep. Fiyatlar şimdilik yer tutucu.
+// Ücretsiz plan: tüm hatlarda toplam 1 talep. Ücretli planlar günlük ve tüm hatlarda ortak.
+// Fiyatlar şimdilik yer tutucu.
 const PLANS = [
-  { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: 'ilk gün 1 talep', limit: 1 },
+  { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: '1 ücretsiz talep', limit: 1 },
   { k: 'p5', t: 'Talepp+ 5', short: 'PLUS 5', desc: 'günde 5 talep', price: '₺49,99', limit: 5 },
   { k: 'p10', t: 'Talepp+ 10', short: 'PLUS 10', desc: 'günde 10 talep', price: '₺79,99', limit: 10, badge: 'en popüler 🔥' },
   { k: 'inf', t: 'Talepp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: '₺129,99', limit: Infinity, badge: 'kraliçe modu 👑' },
@@ -97,10 +99,30 @@ const CONFETTI = ['💖', '✦', '🎉', '💅', '🦋', '⭐', '🫧', '👑'];
 // ─────────────────────────────────────────────────────────────
 // Yardımcılar
 // ─────────────────────────────────────────────────────────────
-const todayKey = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const todayKey = () => dayKey(new Date());
+
+const DAY_SHORT = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+const MONTH_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+const TIMES = Array.from({ length: 17 }, (_, i) => `${String((i + 8) % 24).padStart(2, '0')}:00`); // 08:00 … 00:00
+
+// Talep formundaki gün çipleri: bugün, yarın, sonra "Cmt 8" gibi
+function nextDays(n) {
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return { k: dayKey(d), t: i === 0 ? 'bugün' : i === 1 ? 'yarın' : `${DAY_SHORT[d.getDay()]} ${d.getDate()}` };
+  });
+}
+function dayLabel(k) {
+  const [y, m, d] = k.split('-').map(Number);
+  const t = new Date();
+  if (k === dayKey(t)) return 'bugün';
+  t.setDate(t.getDate() + 1);
+  if (k === dayKey(t)) return 'yarın';
+  return `${d} ${MONTH_SHORT[m - 1]} ${DAY_SHORT[new Date(y, m - 1, d).getDay()]}`;
+}
+const whenText = r => [r.date && `📅 ${dayLabel(r.date)}`, r.time && `🕗 ${r.time}`, r.place && `📍 ${r.place}`].filter(Boolean).join('  ·  ');
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
 function timeAgo(ts) {
@@ -123,8 +145,20 @@ const trUpper = s => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toUpperCase();
 const initial = name => trUpper((name || '?').trim()[0] || '?');
 
 const planOf = k => PLANS.find(p => p.k === k) || PLANS[0];
-const dailyLimit = m => (m.plan === 'free' ? (m.joinedDay === todayKey() ? 1 : 0) : planOf(m.plan).limit);
 const sentToday = (requests, id) => requests.filter(r => r.from === id && r.day === todayKey()).length;
+// "ben" bütün hatlarda aynı kişi: günlük sayım tüm hatlardan toplanır
+const myUsedToday = store => store.lines.reduce((n, l) => n + sentToday(l.requests, l.meId), 0);
+const meName = l => ((l && l.members.find(m => m.id === l.meId)) || { name: '' }).name;
+
+function quotaOf(plan, freeUsed, usedToday) {
+  if (plan === 'free') return { limit: 1, used: freeUsed ? 1 : 0 };
+  return { limit: planOf(plan).limit, used: usedToday };
+}
+function quotaHintOf(plan, left) {
+  if (plan === 'free') return left > 0 ? '🎁 1 talep bizden · tüm hatlarında geçerli' : 'ücretsiz hakkını kullandın 💅 devam için Talepp+';
+  const p = planOf(plan);
+  return p.limit === Infinity ? 'kraliçe modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her gece yenilenir`;
+}
 
 const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 const success = () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
