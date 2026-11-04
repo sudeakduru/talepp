@@ -855,7 +855,7 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
 // ─────────────────────────────────────────────────────────────
 // Talepp+ (şimdilik demo; gerçek ödeme sonraki adımlarda)
 // ─────────────────────────────────────────────────────────────
-function PaywallSheet({ visible, onClose, reason, viewer, colors, onSubscribe }) {
+function PaywallSheet({ visible, onClose, reason, plan, colors, onSubscribe }) {
   const [sel, setSel] = useState('p10');
   return (
     <Sheet visible={visible} onClose={onClose} colors={colors}>
@@ -863,8 +863,12 @@ function PaywallSheet({ visible, onClose, reason, viewer, colors, onSubscribe })
         <Text style={{ fontSize: 58 }}>👑</Text>
         <HoloText style={styles.payTitle}>Talepp+</HoloText>
         <Text style={styles.paySub}>
-          {reason === 'limit' ? 'bugünlük talep hakkın doldu 😩\nama kraliçeler beklemez.' : 'daha çok talep, daha çok drama ✦'}
+          {{
+            free: 'ücretsiz talep hakkını kullandın 😩\nama kraliçeler beklemez.',
+            limit: 'bugünlük talep hakkın doldu 😩\nama kraliçeler beklemez.',
+          }[reason] || 'daha çok talep, daha çok drama ✦'}
         </Text>
+        <Text style={styles.sheetSub}>abonelik tüm hatlarında geçerli ✦</Text>
       </View>
 
       {PAID.map(p => {
@@ -890,8 +894,8 @@ function PaywallSheet({ visible, onClose, reason, viewer, colors, onSubscribe })
 
       <ChromeButton
         hot big style={{ marginTop: 26 }}
-        title={viewer.plan === sel ? 'zaten bu plandasın ✓' : 'abone ol ✦'}
-        disabled={viewer.plan === sel}
+        title={plan === sel ? 'zaten bu plandasın ✓' : 'abone ol ✦'}
+        disabled={plan === sel}
         onPress={() => onSubscribe(sel)}
       />
       <Pressable onPress={() => Alert.alert('geri yükle', 'gerçek satın alma sistemi eklenince burası çalışacak ✦')}>
@@ -927,7 +931,8 @@ function InviteSheet({ visible, onClose, line, colors }) {
 // ─────────────────────────────────────────────────────────────
 // Ana ekran
 // ─────────────────────────────────────────────────────────────
-function Home({ data, setData }) {
+// data: açık olan hat. Plan ve ücretsiz hak hesap düzeyinde, store'da tutuluyor.
+function Home({ data, setData, store, setStore, onHome }) {
   const insets = useSafeAreaInsets();
   const colors = (THEMES[data.line.theme] || THEMES.bubblegum).colors;
   const viewer = data.members.find(m => m.id === data.viewerId) || data.members[0];
@@ -959,13 +964,17 @@ function Home({ data, setData }) {
     else setSheet('paywall');
   };
 
-  const limit = dailyLimit(viewer);
-  const used = sentToday(data.requests, viewer.id);
+  // "ben" için hak tüm hatlarda ortak; demo'da başkasının gözünden bakınca o kişinin hakkı bu hatta
+  const isMe = viewer.id === data.meId;
+  const plan = isMe ? store.plan : viewer.plan;
+  const { limit, used } = quotaOf(
+    plan,
+    isMe ? store.freeUsed : !!viewer.freeUsed,
+    isMe ? myUsedToday(store) : sentToday(data.requests, viewer.id),
+  );
   const left = Math.max(0, limit - used);
-
-  const quotaHint = viewer.plan === 'free'
-    ? (limit > 0 ? 'ilk gün hediyesi 🎁 1 talep bizden' : 'ücretsiz hak ilk gün içindi 💅 devam için Talepp+')
-    : (limit === Infinity ? 'kraliçe modu açık 👑' : `${planOf(viewer.plan).desc} · her gece yenilenir`);
+  const quotaHint = quotaHintOf(plan, left);
+  const limitReason = plan === 'free' ? 'free' : 'limit';
 
   const updateReq = (id, fn) => setData(d => ({ ...d, requests: d.requests.map(r => (r.id === id ? fn(r) : r)) }));
   const withH = (r, type, text) => ({ ...r, history: [...r.history, { type, text, by: viewer.id, at: Date.now() }] });
@@ -998,31 +1007,45 @@ function Home({ data, setData }) {
     },
   };
 
-  const send = ({ to, catId, title, desc, urgency, image }) => {
-    if (used >= limit) { openPaywall('limit'); return; }
+  const send = ({ to, catId, title, desc, urgency, image, date, time, place }) => {
+    if (left <= 0) { openPaywall(limitReason); return; }
     const now = Date.now();
     const r = {
       id: uid(), from: viewer.id, to, catId, title: title.trim(), desc: desc.trim(), urgency, image,
+      date, time, place: place.trim() || null,
       status: 'pending', createdAt: now, day: todayKey(), history: [{ type: 'created', by: viewer.id, at: now }],
     };
-    setData(d => ({ ...d, requests: [r, ...d.requests] }));
+    // ücretsiz hak bir kez harcanınca talep geri çekilse de geri gelmez
+    setData(d => ({
+      ...d,
+      requests: [r, ...d.requests],
+      members: isMe ? d.members : d.members.map(m => (m.id === viewer.id ? { ...m, freeUsed: true } : m)),
+    }));
+    if (isMe) setStore(s => ({ ...s, freeUsed: true }));
     setTab('out');
     closeThen(() => { success(); toast(`🚀 talep fırlatıldı · ${nameOf(to)} bildirim aldı`); });
   };
 
+  const addCat = t => {
+    const c = { id: uid(), e: '✨', t };
+    setData(d => ({ ...d, line: { ...d.line, cats: [...d.line.cats, c] } }));
+    return c.id;
+  };
+
   const subscribe = k => {
-    setData(d => ({ ...d, members: d.members.map(m => (m.id === viewer.id ? { ...m, plan: k } : m)) }));
+    if (isMe) setStore(s => ({ ...s, plan: k }));
+    else setData(d => ({ ...d, members: d.members.map(m => (m.id === viewer.id ? { ...m, plan: k } : m)) }));
     closeThen(() => celebrate(`👑 ${planOf(k).t} aktif!`));
   };
 
-  const onFab = () => (left <= 0 ? openPaywall('limit') : setSheet('new'));
+  const onFab = () => (left <= 0 ? openPaywall(limitReason) : setSheet('new'));
 
   const settings = () => {
     Alert.alert(`${data.line.emoji} ${data.line.name}`, 'ne yapmak istersin?', [
       { text: 'arkadaş davet et 💌', onPress: () => setSheet('invite') },
       { text: 'Talepp+ planları 👑', onPress: () => openPaywall('browse') },
       {
-        text: 'hattı sıfırla (demo)', style: 'destructive',
+        text: 'hattı sil', style: 'destructive',
         onPress: () => Alert.alert('emin misin?', 'hat ve tüm talepler silinecek.', [
           { text: 'vazgeç', style: 'cancel' },
           { text: 'sıfırla', style: 'destructive', onPress: () => setData(null) },
@@ -1056,6 +1079,9 @@ function Home({ data, setData }) {
             <Text style={styles.kicker}>talep hattı ✦</Text>
             <Text style={styles.lineName} numberOfLines={2}>{data.line.name}</Text>
           </View>
+          <Pressable onPress={() => { tap(); onHome(); }} hitSlop={10} style={[styles.gear, { marginRight: 8 }]}>
+            <Text style={{ fontSize: 18 }}>🏠</Text>
+          </Pressable>
           <Pressable onPress={() => { tap(); settings(); }} hitSlop={10} style={styles.gear}>
             <Text style={{ fontSize: 20, color: C.ink }}>⚙︎</Text>
           </Pressable>
@@ -1080,13 +1106,13 @@ function Home({ data, setData }) {
         <Glass style={{ marginTop: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>bugünkü talep hakkın</Text>
+              <Text style={styles.label}>{plan === 'free' ? 'talep hakkın' : 'bugünkü talep hakkın'}</Text>
               <HoloText style={styles.quotaBig}>{limit === Infinity ? '∞' : `${left}/${limit}`}</HoloText>
               <Text style={styles.quotaHint}>{quotaHint}</Text>
             </View>
-            {viewer.plan === 'free'
+            {plan === 'free'
               ? <ChromeButton small hot title="Talepp+ 👑" onPress={() => openPaywall('browse')} />
-              : <Pressable onPress={() => openPaywall('browse')}><Sticker text={`👑 ${planOf(viewer.plan).short}`} bg={C.butter} rotate="6deg" /></Pressable>}
+              : <Pressable onPress={() => openPaywall('browse')}><Sticker text={`👑 ${planOf(plan).short}`} bg={C.butter} rotate="6deg" /></Pressable>}
           </View>
           {limit !== Infinity && limit > 0 ? (
             <View style={styles.bar}>
@@ -1138,10 +1164,57 @@ function Home({ data, setData }) {
 
       <Confetti burst={burst} />
 
-      <NewRequestSheet visible={sheet === 'new'} onClose={() => setSheet(null)} data={data} viewer={viewer} colors={colors} onSend={send} left={left} />
+      <NewRequestSheet visible={sheet === 'new'} onClose={() => setSheet(null)} data={data} viewer={viewer} colors={colors} onSend={send} onAddCat={addCat} left={left} />
       <DetailSheet visible={sheet === 'detail'} onClose={() => setSheet(null)} r={detail} data={data} viewer={viewer} colors={colors} act={act} />
-      <PaywallSheet visible={sheet === 'paywall'} onClose={() => setSheet(null)} reason={paywallReason} viewer={viewer} colors={colors} onSubscribe={subscribe} />
+      <PaywallSheet visible={sheet === 'paywall'} onClose={() => setSheet(null)} reason={paywallReason} plan={plan} colors={colors} onSubscribe={subscribe} />
       <InviteSheet visible={sheet === 'invite'} onClose={() => setSheet(null)} line={data.line} colors={colors} />
+    </HoloBg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Ana sayfa: tüm hatlar
+// ─────────────────────────────────────────────────────────────
+function Lines({ store, onOpen, onNew }) {
+  const insets = useSafeAreaInsets();
+  const { limit, used } = quotaOf(store.plan, store.freeUsed, myUsedToday(store));
+  const left = Math.max(0, limit - used);
+  return (
+    <HoloBg colors={THEMES.bubblegum.colors}>
+      <ScrollView
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: insets.bottom + 130 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.kicker}>ana sayfa ✦</Text>
+        <HoloText style={styles.hubTitle}>hatlarım</HoloText>
+
+        <Glass style={{ marginTop: 14 }}>
+          <Text style={styles.label}>{store.plan === 'free' ? 'talep hakkın' : 'bugünkü talep hakkın'}</Text>
+          <HoloText style={styles.quotaBig}>{limit === Infinity ? '∞' : `${left}/${limit}`}</HoloText>
+          <Text style={styles.quotaHint}>{quotaHintOf(store.plan, left)}</Text>
+        </Glass>
+
+        {store.lines.map(l => {
+          const pending = l.requests.filter(r => r.to === l.meId && OPEN.includes(r.status)).length;
+          return (
+            <Pressable key={l.id} onPress={() => { tap(); onOpen(l.id); }} style={({ pressed }) => [{ marginTop: 16, transform: [{ scale: pressed ? 0.98 : 1 }] }]}>
+              <Glass style={styles.lineRow}>
+                <View style={styles.cardEmoji}><Text style={{ fontSize: 26 }}>{l.line.emoji}</Text></View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>{l.line.name}</Text>
+                  <Text style={styles.cardMeta}>{l.members.length} kişi · {l.requests.length} talep</Text>
+                </View>
+                {pending > 0 ? <View style={styles.badge}><Text style={styles.badgeTxt}>{pending}</Text></View> : null}
+                <Text style={styles.chevron}>›</Text>
+              </Glass>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <View style={[styles.fabWrap, { bottom: insets.bottom + 14 }]} pointerEvents="box-none">
+        <ChromeButton hot big title="＋ YENİ HAT KUR" onPress={onNew} />
+      </View>
     </HoloBg>
   );
 }
@@ -1149,32 +1222,87 @@ function Home({ data, setData }) {
 // ─────────────────────────────────────────────────────────────
 // Kök
 // ─────────────────────────────────────────────────────────────
+const EMPTY_STORE = { lines: [], activeId: null, plan: 'free', freeUsed: false };
+
+// v1 tek hat tutuyordu ve plan kişi başınaydı; v2'de birden çok hat ve hesap düzeyinde plan var
+function migrate(old) {
+  const id = uid();
+  const me = old.members.find(m => m.id === old.meId);
+  return {
+    lines: [{ ...old, id }],
+    activeId: id,
+    plan: me ? me.plan : 'free',
+    freeUsed: old.requests.some(r => r.from === old.meId),
+  };
+}
+
 export default function App() {
   const [fontsLoaded] = useFonts({ Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black });
-  const [data, setData] = useState(null);
-  const [ready, setReady] = useState(false);
+  const [store, setStore] = useState(null);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     (async () => {
+      let s = null;
       try {
         const raw = await AsyncStorage.getItem(STORE_KEY);
-        if (raw) setData(JSON.parse(raw));
+        if (raw) s = JSON.parse(raw);
+        else {
+          const old = await AsyncStorage.getItem(OLD_KEY);
+          if (old) s = migrate(JSON.parse(old));
+        }
       } catch (e) {}
-      setReady(true);
+      setStore(s || EMPTY_STORE);
     })();
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
-    (data ? AsyncStorage.setItem(STORE_KEY, JSON.stringify(data)) : AsyncStorage.removeItem(STORE_KEY)).catch(() => {});
-  }, [data, ready]);
+    if (store) AsyncStorage.setItem(STORE_KEY, JSON.stringify(store)).catch(() => {});
+  }, [store]);
 
-  if (!fontsLoaded || !ready) return <View style={{ flex: 1, backgroundColor: '#FFC6EC' }} />;
+  if (!fontsLoaded || !store) return <View style={{ flex: 1, backgroundColor: '#FFC6EC' }} />;
+
+  const active = store.lines.find(l => l.id === store.activeId);
+
+  const addLine = line => {
+    const id = uid();
+    setStore(s => ({ ...s, lines: [...s.lines, { ...line, id }], activeId: id }));
+    setAdding(false);
+  };
+  // Home açık hattı bununla günceller; null verirse hat silinir
+  const setLine = fn => setStore(s => {
+    const cur = s.lines.find(l => l.id === s.activeId);
+    if (!cur) return s;
+    const next = typeof fn === 'function' ? fn(cur) : fn;
+    if (!next) return { ...s, lines: s.lines.filter(l => l.id !== cur.id), activeId: null };
+    return { ...s, lines: s.lines.map(l => (l.id === cur.id ? next : l)) };
+  });
+
+  let screen;
+  if (!store.lines.length || adding) {
+    screen = (
+      <Onboarding
+        onDone={addLine}
+        onCancel={store.lines.length ? () => setAdding(false) : null}
+        myName={meName(store.lines[0])}
+        giftLeft={store.plan === 'free' && !store.freeUsed}
+      />
+    );
+  } else if (active) {
+    screen = (
+      <Home
+        key={active.id} data={active} setData={setLine} store={store} setStore={setStore}
+        onHome={() => setStore(s => ({ ...s, activeId: null }))}
+      />
+    );
+  } else {
+    screen = <Lines store={store} onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)} />;
+  }
 
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-      {data ? <Home data={data} setData={setData} /> : <Onboarding onDone={setData} />}
+      {screen}
     </SafeAreaProvider>
   );
 }
@@ -1243,6 +1371,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.7)', borderWidth: 1.5, borderColor: '#fff',
   },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  hRow: { gap: 8, paddingVertical: 4, marginTop: 6 },
 
   label: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, letterSpacing: 0.6 },
   kicker: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, letterSpacing: 0.6 },
@@ -1284,6 +1413,9 @@ const styles = StyleSheet.create({
     shadowColor: C.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 3, height: 3 },
   },
   lineName: { fontFamily: F.black, fontSize: 21, color: C.ink, letterSpacing: -0.5, marginTop: 2 },
+  hubTitle: { fontFamily: F.black, fontSize: 40, letterSpacing: -1.5, marginTop: 2 },
+  lineRow: { flexDirection: 'row', alignItems: 'center' },
+  chevron: { fontFamily: F.black, fontSize: 24, color: C.inkSoft, marginLeft: 10 },
   gear: {
     width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: '#fff',
@@ -1319,6 +1451,7 @@ const styles = StyleSheet.create({
   cardCat: { fontFamily: F.med, fontSize: 9, color: C.inkSoft, letterSpacing: 1 },
   cardTitle: { fontFamily: F.bold, fontSize: 15, color: C.ink, marginTop: 3, lineHeight: 20 },
   cardMeta: { fontSize: 12, fontWeight: '600', color: C.inkSoft, marginTop: 4 },
+  cardWhen: { fontSize: 12, fontWeight: '700', color: C.ink, marginTop: 4 },
   cardThumb: { width: 54, height: 54, borderRadius: 14, marginLeft: 10, borderWidth: 2, borderColor: '#fff' },
   cardSticker: { position: 'absolute', top: -10, right: 14 },
 
@@ -1362,6 +1495,8 @@ const styles = StyleSheet.create({
 
   detailTitle: { fontFamily: F.black, fontSize: 26, color: C.ink, marginTop: 18, letterSpacing: -0.5, lineHeight: 34 },
   detailMeta: { fontSize: 13, fontWeight: '600', color: C.inkSoft, marginTop: 6 },
+  whenTxt: { fontFamily: F.bold, fontSize: 14, color: C.ink, lineHeight: 21 },
+  mapLink: { fontFamily: F.med, fontSize: 11, color: C.hot },
   desc: { fontSize: 16, fontWeight: '500', color: C.ink, lineHeight: 23 },
   detailImg: { width: '100%', aspectRatio: 1, borderRadius: 26, marginTop: 16, borderWidth: 3, borderColor: '#fff' },
   approvedBanner: { marginTop: 16, borderRadius: 22, paddingVertical: 16, alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
