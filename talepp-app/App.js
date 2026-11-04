@@ -367,7 +367,8 @@ const AUTH_ERRORS = {
 
 function AuthScreen({ onDemo }) {
   const insets = useSafeAreaInsets();
-  const [login, setLogin] = useState(false);
+  const [mode, setMode] = useState('welcome'); // welcome | signup | login
+  const login = mode === 'login';
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [email, setEmail] = useState('');
@@ -392,10 +393,25 @@ function AuthScreen({ onDemo }) {
     if (res.error) return setMsg(AUTH_ERRORS[res.error.message] || 'bir şeyler ters gitti 😵 internetini kontrol edip tekrar dener misin?');
     // oturum açıldıysa App'teki onAuthStateChange ekranı kendisi değiştirir
     if (!res.data.session) {
-      setLogin(true);
+      setMode('login');
       setMsg('📩 e-postana onay bağlantısı gönderdik. onaylayınca buradan giriş yap.');
     }
   };
+
+  const go = m => { tap(); setMsg(''); setMode(m); };
+
+  if (mode === 'welcome') {
+    return (
+      <Welcome
+        colors={THEMES.bubblegum.colors} title="kaydol ✦" onPress={() => setMode('signup')}
+        footer={(
+          <Pressable onPress={() => go('login')} hitSlop={10}>
+            <Text style={styles.restore}>zaten hesabın var mı? giriş yap</Text>
+          </Pressable>
+        )}
+      />
+    );
+  }
 
   return (
     <HoloBg colors={THEMES.bubblegum.colors}>
@@ -405,6 +421,9 @@ function AuthScreen({ onDemo }) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <Pressable onPress={() => go('welcome')} hitSlop={12} style={{ alignSelf: 'flex-start', marginBottom: 14 }}>
+            <Text style={styles.back}>← geri</Text>
+          </Pressable>
           <View style={{ alignItems: 'center' }}>
             <Sticker text={login ? '✦ tekrar hoş geldin ✦' : '✦ yeni nesil talep hattı ✦'} rotate="-3deg" />
             <HoloText style={styles.logo}>Talepp</HoloText>
@@ -450,7 +469,7 @@ function AuthScreen({ onDemo }) {
                 title={busy ? 'bekle bi sn... ✦' : login ? 'giriş yap ✦' : 'kaydol ✦'}
                 onPress={submit}
               />
-              <Pressable onPress={() => { tap(); setLogin(l => !l); setMsg(''); }} hitSlop={10}>
+              <Pressable onPress={() => go(login ? 'signup' : 'login')} hitSlop={10}>
                 <Text style={styles.restore}>{login ? 'hesabın yok mu? kaydol' : 'zaten hesabın var mı? giriş yap'}</Text>
               </Pressable>
             </View>
@@ -513,10 +532,40 @@ function StepShell({ step, colors, title, sub, onBack, onNext, nextTitle, canNex
   );
 }
 
-// onCancel: zaten hattı olan biri yeni hat kuruyorsa "hatlarım"a dönüş
-function Onboarding({ onDone, onCancel, myName, giftLeft }) {
+// Karşılama: kayıttan önce ve yeni hat kurarken aynı ekran, sadece buton farklı
+function Welcome({ colors, title, onPress, onBack, footer }) {
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState(0);
+  return (
+    <HoloBg colors={colors}>
+      <View style={{ flex: 1, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 22, paddingHorizontal: 24, justifyContent: 'space-between' }}>
+        <View style={{ alignItems: 'center' }}>
+          {onBack ? (
+            <Pressable onPress={onBack} hitSlop={12} style={{ alignSelf: 'flex-start', marginBottom: 14 }}>
+              <Text style={styles.back}>← hatlarım</Text>
+            </Pressable>
+          ) : null}
+          <Sticker text="✦ yeni nesil talep hattı ✦" rotate="-3deg" />
+          <HoloText style={styles.logo}>Talepp</HoloText>
+          <Text style={styles.tagline}>sevgilin & kankaların için{'\n'}kendi talep hattını kur 💅</Text>
+        </View>
+        <View style={{ height: 250 }}>
+          <FloatCard e="💅" t="nail randevusu" st="approved" rot="-6deg" delay={0} style={{ left: 0, top: 0 }} />
+          <FloatCard e="🍕" t="gece 2'de pizza" st="nego" rot="5deg" delay={500} style={{ right: 0, top: 84 }} />
+          <FloatCard e="✈️" t="hafta sonu kaçamağı" st="pending" rot="-3deg" delay={1000} style={{ left: 14, top: 168 }} />
+        </View>
+        <View>
+          <ChromeButton hot big title={title} onPress={onPress} />
+          {footer}
+        </View>
+      </View>
+    </HoloBg>
+  );
+}
+
+// onCancel: zaten hattı olan biri yeni hat kuruyorsa "hatlarım"a dönüş
+// startStep 1: kayıttan yeni gelen biri karşılamayı zaten gördü
+function Onboarding({ onDone, onCancel, myName, giftLeft, startStep }) {
+  const [step, setStep] = useState(startStep || 0);
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState('💖');
   const [theme, setTheme] = useState('bubblegum');
@@ -559,29 +608,10 @@ function Onboarding({ onDone, onCancel, myName, giftLeft }) {
 
   if (step === 0) {
     return (
-      <HoloBg colors={colors}>
-        <View style={{ flex: 1, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 22, paddingHorizontal: 24, justifyContent: 'space-between' }}>
-          <View style={{ alignItems: 'center' }}>
-            {onCancel ? (
-              <Pressable onPress={onCancel} hitSlop={12} style={{ alignSelf: 'flex-start', marginBottom: 14 }}>
-                <Text style={styles.back}>← hatlarım</Text>
-              </Pressable>
-            ) : null}
-            <Sticker text="✦ yeni nesil talep hattı ✦" rotate="-3deg" />
-            <HoloText style={styles.logo}>Talepp</HoloText>
-            <Text style={styles.tagline}>sevgilin & kankaların için{'\n'}kendi talep hattını kur 💅</Text>
-          </View>
-          <View style={{ height: 250 }}>
-            <FloatCard e="💅" t="nail randevusu" st="approved" rot="-6deg" delay={0} style={{ left: 0, top: 0 }} />
-            <FloatCard e="🍕" t="gece 2'de pizza" st="nego" rot="5deg" delay={500} style={{ right: 0, top: 84 }} />
-            <FloatCard e="✈️" t="hafta sonu kaçamağı" st="pending" rot="-3deg" delay={1000} style={{ left: 14, top: 168 }} />
-          </View>
-          <View>
-            <ChromeButton hot big title="hattımı kur ✦" onPress={() => setStep(1)} />
-            {giftLeft ? <Text style={styles.gift}>🎁 ilk talep bizden</Text> : null}
-          </View>
-        </View>
-      </HoloBg>
+      <Welcome
+        colors={colors} title="hattımı kur ✦" onPress={() => setStep(1)} onBack={onCancel}
+        footer={giftLeft ? <Text style={styles.gift}>🎁 ilk talep bizden</Text> : null}
+      />
     );
   }
 
@@ -1501,6 +1531,7 @@ export default function App() {
         onCancel={store.lines.length ? () => setAdding(false) : null}
         myName={meName(store.lines[0]) || (user && user.user_metadata && user.user_metadata.name) || ''}
         giftLeft={store.plan === 'free' && !store.freeUsed}
+        startStep={user && !store.lines.length ? 1 : 0}
       />
     );
   } else if (active) {
