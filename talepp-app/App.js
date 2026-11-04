@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black } from '@expo-google-fonts/unbounded';
@@ -47,6 +48,11 @@ const THEMES = {
 };
 
 const EMOJIS = ['💖', '🦋', '🍒', '👑', '🌙', '🧸', '🔥', '🫧', '🍓', '💅', '🐱', '🌸'];
+// Kendi eklenen talep başlıkları için
+const CAT_EMOJIS = [
+  '✨', '🧋', '🍣', '🍔', '🌮', '🍰', '🍷', '🎮', '🎤', '🎨', '📚', '🏋️', '🧘', '🛁', '💄', '👗',
+  '👟', '💸', '🚗', '🏖️', '🐶', '🌹', '💤', '📱', '🎂', '🧺',
+];
 
 const PRESET_CATS = [
   { e: '💅', t: 'Bakım' }, { e: '🍕', t: 'Yemek' }, { e: '🎁', t: 'Hediye' },
@@ -298,7 +304,16 @@ function Chip({ label, on, onPress, style }) {
   );
 }
 
-function Avatar({ name, index, size = 40, active }) {
+// uri: profil fotoğrafı; yoksa adın baş harfi
+function Avatar({ name, index, size = 40, active, uri }) {
+  if (uri) {
+    return (
+      <Image
+        source={{ uri }}
+        style={{ width: size, height: size, borderRadius: size / 2, borderWidth: active ? 3 : 2, borderColor: active ? C.ink : '#fff' }}
+      />
+    );
+  }
   return (
     <LinearGradient
       colors={AV_COLORS[index % AV_COLORS.length]}
@@ -313,6 +328,19 @@ function Avatar({ name, index, size = 40, active }) {
 }
 
 const Label = ({ children, style }) => <Text style={[styles.label, style]}>{children}</Text>;
+
+// Yeni başlık eklerken emoji seçimi
+function EmojiPick({ value, onChange }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.emojiRow}>
+      {CAT_EMOJIS.map(e => (
+        <Pressable key={e} onPress={() => { tap(); onChange(e); }} style={[styles.emojiMini, value === e && styles.emojiBoxOn]}>
+          <Text style={{ fontSize: 20 }}>{e}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
 
 function Confetti({ burst }) {
   const [pieces, setPieces] = useState([]);
@@ -592,6 +620,7 @@ function Onboarding({ onDone, onCancel, myName }) {
   const [theme, setTheme] = useState('bubblegum');
   const [cats, setCats] = useState(PRESET_CATS.map((c, i) => ({ ...c, on: i < 6 })));
   const [custom, setCustom] = useState('');
+  const [customEmoji, setCustomEmoji] = useState('✨');
   const [me, setMe] = useState(myName || '');
   const [busy, setBusy] = useState(false);
   const colors = THEMES[theme].colors;
@@ -599,8 +628,9 @@ function Onboarding({ onDone, onCancel, myName }) {
   const addCustom = () => {
     const t = custom.trim();
     if (!t) return;
-    setCats(cs => [...cs, { e: '✨', t, on: true }]);
+    setCats(cs => [...cs, { e: customEmoji, t, on: true }]);
     setCustom('');
+    setCustomEmoji('✨');
     tap();
   };
   const finish = async () => {
@@ -667,13 +697,16 @@ function Onboarding({ onDone, onCancel, myName }) {
               onPress={() => setCats(cs => cs.map((x, j) => (j === i ? { ...x, on: !x.on } : x)))} />
           ))}
         </View>
+        <Label style={{ marginTop: 18 }}>kendi başlığını ekle</Label>
         <View style={styles.addRow}>
+          <View style={styles.emojiNow}><Text style={{ fontSize: 22 }}>{customEmoji}</Text></View>
           <TextInput
-            value={custom} onChangeText={setCustom} placeholder="kendi başlığın (örn. Boba 🧋)" placeholderTextColor="#B79BCB"
-            style={[styles.input, { flex: 1 }]} maxLength={24} onSubmitEditing={addCustom} returnKeyType="done"
+            value={custom} onChangeText={setCustom} placeholder="örn. Boba" placeholderTextColor="#B79BCB"
+            style={[styles.input, { flex: 1, marginLeft: 10 }]} maxLength={24} onSubmitEditing={addCustom} returnKeyType="done"
           />
           <ChromeButton title="+" onPress={addCustom} style={{ marginLeft: 10 }} />
         </View>
+        <EmojiPick value={customEmoji} onChange={setCustomEmoji} />
       </StepShell>
     );
   }
@@ -774,6 +807,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
   const [to, setTo] = useState(null);
   const [catId, setCatId] = useState(null);
   const [newCat, setNewCat] = useState(null); // null: kutu kapalı
+  const [newEmoji, setNewEmoji] = useState('✨');
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [urgency, setUrgency] = useState('onemli');
@@ -789,7 +823,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
     if (!visible) return;
     setTo(others[0] ? others[0].id : null);
     setCatId(data.line.cats[0] ? data.line.cats[0].id : null);
-    setNewCat(null); setTitle(''); setDesc(''); setUrgency('onemli'); setImage(null);
+    setNewCat(null); setNewEmoji('✨'); setTitle(''); setDesc(''); setUrgency('onemli'); setImage(null);
     setDate(null); setCalOpen(false); setTime(''); setPlace(''); setBusy(false);
   }, [visible]);
 
@@ -802,8 +836,9 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
   const addCat = () => {
     const t = (newCat || '').trim();
     if (!t) return;
-    setCatId(onAddCat(t));
+    setCatId(onAddCat(t, newEmoji));
     setNewCat(null);
+    setNewEmoji('✨');
     tap();
   };
 

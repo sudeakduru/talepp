@@ -21,7 +21,7 @@ export async function fetchAll(userId) {
     ids.length ? supabase.from('talepp_members').select('*').in('line_id', ids).order('joined_at') : { data: [] },
     ids.length ? supabase.from('talepp_requests').select('*').in('line_id', ids).order('created_at', { ascending: false }) : { data: [] },
     supabase.from('talepp_blocks').select('blocked'),
-    supabase.from('talepp_profiles').select('free_used').eq('id', userId).maybeSingle(),
+    supabase.from('talepp_profiles').select('free_used, avatar').eq('id', userId).maybeSingle(),
   ]);
   const failed = [mem, req, blk, prof].find(r => r.error);
   if (failed) throw failed.error;
@@ -39,12 +39,13 @@ export async function fetchAll(userId) {
 
   return {
     freeUsed: !!(prof.data && prof.data.free_used),
+    avatar: (prof.data && prof.data.avatar) || null,
     lines: lines.map(l => ({
       id: l.id,
       owner: l.owner,
       meId: userId,
       line: { name: l.name, emoji: l.emoji, theme: l.theme, cats: l.cats, code: l.code },
-      members: mem.data.filter(m => m.line_id === l.id).map(m => ({ id: m.user_id, name: m.name })),
+      members: mem.data.filter(m => m.line_id === l.id).map(m => ({ id: m.user_id, name: m.name, avatar: m.avatar })),
       requests: reqs.filter(r => r.line_id === l.id).map(r => toReq(r, urls)),
     })),
   };
@@ -85,12 +86,46 @@ export async function removeMember(lineId, userId) {
   if (error) throw error;
 }
 
+const toBytes = base64 => Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+
 async function uploadImage(lineId, base64) {
   const path = `${lineId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-  const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, { contentType: 'image/jpeg' });
+  const { error } = await supabase.storage.from(BUCKET).upload(path, toBytes(base64), { contentType: 'image/jpeg' });
   if (error) throw error;
   return path;
+}
+
+// Profil fotoğrafı: açık kovada <kullanıcı id>/<zaman>.jpg; eski fotoğraflar silinir
+const AVATARS = 'talepp-avatars';
+
+async function clearAvatarFiles(userId) {
+  const { data } = await supabase.storage.from(AVATARS).list(userId);
+  if (data && data.length) await supabase.storage.from(AVATARS).remove(data.map(f => `${userId}/${f.name}`));
+}
+
+// base64 null ise fotoğraf kaldırılır; yeni adresi (ya da null) döner
+export async function setAvatar(userId, base64) {
+  let url = null;
+  if (base64) {
+    const path = `${userId}/${Date.now()}.jpg`;
+    const { error } = await supabase.storage.from(AVATARS).upload(path, toBytes(base64), { contentType: 'image/jpeg' });
+    if (error) throw error;
+    url = supabase.storage.from(AVATARS).getPublicUrl(path).data.publicUrl;
+  }
+  const { error } = await supabase.rpc('talepp_set_avatar', { p_url: url });
+  if (error) throw error;
+  // eskileri temizle (yenisi hariç); başarısız olursa önemli değil
+  try {
+    const { data } = await supabase.storage.from(AVATARS).list(userId);
+    const old = (data || []).filter(f => !url || !url.endsWith(`/${f.name}`)).map(f => `${userId}/${f.name}`);
+    if (old.length) await supabase.storage.from(AVATARS).remove(old);
+  } catch (e) {}
+  return url;
+}
+
+// Hesap silinmeden önce: fotoğraflar kovada sahipsiz kalmasın
+export async function removeAvatarFiles(userId) {
+  try { await clearAvatarFiles(userId); } catch (e) {}
 }
 
 // r: { from, to, catId, title, desc, urgency, date, time, place, day, history }; imageB64 varsa önce görsel yüklenir
