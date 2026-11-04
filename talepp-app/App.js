@@ -1128,7 +1128,7 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
                   <Text style={styles.planDesc}>{p.desc}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.planPrice}>{p.price}</Text>
+                  <Text style={styles.planPrice}>{priceOf(p)}</Text>
                   <Text style={styles.planPer}>/ ay</Text>
                 </View>
               </View>
@@ -1139,37 +1139,108 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
       })}
 
       <ChromeButton
-        hot big style={{ marginTop: 26 }}
-        title={plan === sel ? 'zaten bu plandasın ✓' : 'abone ol ✦'}
-        disabled={plan === sel}
-        onPress={() => onSubscribe(sel)}
+        hot big style={{ marginTop: 26 }} disabled={busy || plan === sel}
+        title={plan === sel ? 'zaten bu plandasın ✓' : busy ? 'bekle bi sn... ✦' : !live && __DEV__ ? 'abone ol (test) ✦' : 'abone ol ✦'}
+        onPress={subscribe}
       />
-      <Pressable onPress={() => Alert.alert('geri yükle', 'gerçek satın alma sistemi eklenince burası çalışacak ✦')}>
+      <Pressable onPress={restoreBuys} disabled={busy}>
         <Text style={styles.restore}>satın alımları geri yükle</Text>
       </Pressable>
       <Text style={styles.fine}>
-        demo: henüz gerçek ödeme alınmıyor. yayında ücret Apple ID'nden alınır ve iptal edilmedikçe abonelik otomatik yenilenir. App Store ayarlarından istediğin zaman iptal edebilirsin.
+        abonelik aylıktır; ücret Apple ID'nden alınır ve dönem bitmeden en az 24 saat önce iptal edilmedikçe otomatik yenilenir.
+        App Store hesap ayarlarından istediğin zaman iptal edebilirsin.
+      </Text>
+      <Text style={styles.fine}>
+        <Text style={styles.link} onPress={() => Linking.openURL(TERMS_URL).catch(() => {})}>kullanım koşulları</Text>
+        {PRIVACY_URL ? (
+          <>
+            {'  ·  '}
+            <Text style={styles.link} onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}>gizlilik politikası</Text>
+          </>
+        ) : null}
       </Text>
     </Sheet>
   );
 }
 
-function InviteSheet({ visible, onClose, line, colors }) {
-  const share = () => {
-    Share.share({ message: `${line.emoji} ${line.name} hattıma katıl! Talepp'i indir, kodu gir: ${line.code} ✦` }).catch(() => {});
-  };
+// Davet: kodu ve nasıl katılınacağını tek mesajda paylaşır
+function InviteSheet({ visible, onClose, line, members, colors, fresh }) {
+  const share = () => { Share.share({ message: inviteMessage(line) }).catch(() => {}); };
+  const steps = [
+    ['📲', 'aşağıdaki butonla davet mesajını gönder (WhatsApp, Instagram, SMS...)'],
+    ['⬇️', 'arkadaşın Talepp\'i indirip kaydolsun'],
+    ['🔑', `"kodla katıl"a basıp kodu yazsın: ${line.code}`],
+    ['🔔', 'hattına katılınca sana bildirim gelir, artık talep atabilirsiniz'],
+  ];
   return (
     <Sheet visible={visible} onClose={onClose} colors={colors}>
       <View style={{ alignItems: 'center' }}>
-        <Text style={{ fontSize: 60 }}>💌</Text>
-        <HoloText style={styles.sheetTitle}>hattına çağır</HoloText>
-        <Text style={styles.paySub}>bu kodu sevgiline ya da kankalarına at,{'\n'}{line.name} hattına katılsınlar.</Text>
+        <Text style={{ fontSize: 60 }}>{fresh ? '🎉' : '💌'}</Text>
+        <HoloText style={styles.sheetTitle}>{fresh ? 'hattın hazır!' : 'kişileri davet et'}</HoloText>
+        <Text style={styles.paySub}>
+          {fresh ? 'şimdi talep atacağın kişileri çağır 💌' : `${line.name} hattında şu an ${members} kişi var.`}
+        </Text>
         <LinearGradient colors={CHROME} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.codeBox}>
+          <Text style={styles.kicker}>davet kodun</Text>
           <Text style={styles.code}>{line.code}</Text>
         </LinearGradient>
       </View>
-      <ChromeButton hot big title="kodu paylaş 📲" onPress={share} style={{ marginTop: 26 }} />
-      <Text style={styles.fine}>kodla katılma, hesaplar ve gerçek zamanlı bildirimler bir sonraki adımda bağlanacak.</Text>
+
+      <Glass style={{ marginTop: 22 }}>
+        {steps.map(([e, t], i) => (
+          <View key={i} style={[styles.stepRow, i > 0 && styles.histBorder]}>
+            <Text style={styles.stepEmoji}>{e}</Text>
+            <Text style={styles.stepTxt}>{t}</Text>
+          </View>
+        ))}
+      </Glass>
+
+      <ChromeButton hot big title="davet mesajını gönder 📲" onPress={share} style={{ marginTop: 22 }} />
+      {fresh ? (
+        <Pressable onPress={onClose} hitSlop={10}>
+          <Text style={styles.restore}>sonra davet ederim</Text>
+        </Pressable>
+      ) : null}
+    </Sheet>
+  );
+}
+
+// Kodla katıl: davet kodunu yazan hatta üye olur
+function JoinSheet({ visible, onClose, onJoin, myName }) {
+  const [code, setCode] = useState('');
+  const [name, setName] = useState(myName || '');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { if (visible) { setCode(''); setName(myName || ''); setBusy(false); setMsg(''); } }, [visible]);
+
+  const submit = async () => {
+    setBusy(true);
+    setMsg('');
+    const res = await onJoin(code.trim(), name.trim() || 'Ben');
+    if (res === 'notfound') setMsg('bu kodla bir hat bulamadık 🤔 harfleri kontrol eder misin?');
+    else if (res === 'error') setMsg('olmadı 😵 internetini kontrol edip tekrar dener misin?');
+    if (res !== 'ok') setBusy(false);
+  };
+
+  return (
+    <Sheet visible={visible} onClose={onClose} colors={THEMES.bubblegum.colors}>
+      <View style={{ alignItems: 'center' }}>
+        <Text style={{ fontSize: 60 }}>🔑</Text>
+        <HoloText style={styles.sheetTitle}>kodla katıl</HoloText>
+        <Text style={styles.paySub}>sana gelen davet mesajındaki kodu yaz,{'\n'}o hatta hemen katıl ✦</Text>
+      </View>
+      <Label style={{ marginTop: 22 }}>davet kodu</Label>
+      <TextInput
+        value={code} onChangeText={t => setCode(t.toUpperCase())} placeholder="SUSU-7K2QX" placeholderTextColor="#B79BCB"
+        style={[styles.input, styles.codeInput]} autoCapitalize="characters" autoCorrect={false} maxLength={12}
+      />
+      <Label style={{ marginTop: 16 }}>hatta adın ne olsun?</Label>
+      <TextInput value={name} onChangeText={setName} placeholder="Kerime" placeholderTextColor="#B79BCB" style={styles.input} maxLength={20} />
+      {msg ? <Glass style={{ marginTop: 16 }}><Text style={styles.info}>{msg}</Text></Glass> : null}
+      <ChromeButton
+        hot big title={busy ? 'katılıyorsun... ✦' : 'hatta katıl 🚀'} disabled={busy || code.trim().length < 6}
+        onPress={submit} style={{ marginTop: 24 }}
+      />
     </Sheet>
   );
 }
