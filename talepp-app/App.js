@@ -76,9 +76,9 @@ const REJECT_REASONS = [
 // Fiyatlar şimdilik yer tutucu.
 const PLANS = [
   { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: '1 ücretsiz talep', limit: 1 },
-  { k: 'p5', t: 'Talepp+ 5', short: 'PLUS 5', desc: 'günde 5 talep', price: '₺49,99', limit: 5 },
-  { k: 'p10', t: 'Talepp+ 10', short: 'PLUS 10', desc: 'günde 10 talep', price: '₺79,99', limit: 10, badge: 'en popüler 🔥' },
-  { k: 'inf', t: 'Talepp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: '₺129,99', limit: Infinity, badge: 'kraliçe modu 👑' },
+  { k: 'p5', t: 'TalApp+ 5', short: 'PLUS 5', desc: 'günde 5 talep', price: '₺49,99', limit: 5 },
+  { k: 'p10', t: 'TalApp+ 10', short: 'PLUS 10', desc: 'günde 10 talep', price: '₺79,99', limit: 10, badge: 'en popüler 🔥' },
+  { k: 'inf', t: 'TalApp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: '₺129,99', limit: Infinity, badge: 'kraliçe modu 👑' },
 ];
 const PAID = PLANS.filter(p => p.k !== 'free');
 
@@ -159,7 +159,7 @@ function makeCode(name) {
 
 const inviteMessage = line => [
   `${line.emoji} "${line.name}" talep hattıma katıl! 💌`,
-  `1) Talepp'i indir: ${APP_STORE_URL || 'App Store\'da "Talepp" diye arat'}`,
+  `1) TalApp'i indir: ${APP_STORE_URL || 'App Store\'da "TalApp" diye arat'}`,
   '2) Kaydol, "kodla katıl"a bas',
   `3) Kodu yaz: ${line.code}`,
 ].join('\n');
@@ -181,7 +181,7 @@ function quotaOf(plan, freeUsed, usedToday) {
   return { limit: planOf(plan).limit, used: usedToday };
 }
 function quotaHintOf(plan, left) {
-  if (plan === 'free') return left > 0 ? '🎁 1 talep bizden · tüm hatlarında geçerli' : 'ücretsiz hakkını kullandın 💅 devam için Talepp+';
+  if (plan === 'free') return left > 0 ? '🎁 1 talep bizden · tüm hatlarında geçerli' : 'ücretsiz hakkını kullandın 💅 devam için TalApp+';
   const p = planOf(plan);
   return p.limit === Infinity ? 'kraliçe modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her gece yenilenir`;
 }
@@ -425,7 +425,7 @@ function AuthScreen() {
     setMsg('');
     const a = parseInt(age, 10);
     if (!login && !name.trim()) return setMsg('adını yazar mısın? 🫶');
-    if (!login && !(a >= 13 && a <= 120)) return setMsg('Talepp 13 yaş ve üstü için 💅 yaşını kontrol eder misin?');
+    if (!login && !(a >= 13 && a <= 120)) return setMsg('TalApp 13 yaş ve üstü için 💅 yaşını kontrol eder misin?');
     if (!/\S+@\S+\.\S+/.test(email.trim())) return setMsg('geçerli bir e-posta yaz ✉️');
     if (password.length < 6) return setMsg('şifre en az 6 karakter olmalı 🔐');
     Keyboard.dismiss();
@@ -474,7 +474,7 @@ function AuthScreen() {
           </Pressable>
           <View style={{ alignItems: 'center' }}>
             <Sticker text={login ? '✦ tekrar hoş geldin ✦' : '✦ yeni nesil talep hattı ✦'} rotate="-3deg" />
-            <HoloText style={styles.logo}>Talepp</HoloText>
+            <HoloText style={styles.logo}>TalApp</HoloText>
             <Text style={styles.tagline}>{login ? 'hesabına giriş yap 💅' : 'önce seni tanıyalım 🫶'}</Text>
           </View>
 
@@ -594,7 +594,7 @@ function Welcome({ colors, title, onPress, footer }) {
       <View style={{ flex: 1, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 22, paddingHorizontal: 24, justifyContent: 'space-between' }}>
         <View style={{ alignItems: 'center' }}>
           <Sticker text="✦ yeni nesil talep hattı ✦" rotate="-3deg" />
-          <HoloText style={styles.logo}>Talepp</HoloText>
+          <HoloText style={styles.logo}>TalApp</HoloText>
           <Text style={styles.tagline}>sevgilin & kankaların için{'\n'}kendi talep hattını kur 💅</Text>
         </View>
         <View style={{ height: 250 }}>
@@ -718,7 +718,7 @@ function Onboarding({ onDone, onCancel, myName }) {
       <Glass style={{ marginTop: 22 }}>
         <Text style={styles.kicker}>sırada ne var? 💌</Text>
         <Text style={styles.stepInfo}>
-          hattı açınca sana bir davet kodu vereceğiz. sevgiline ya da kankalarına gönder; Talepp'i indirip kodu yazınca hattına katılırlar.
+          hattı açınca sana bir davet kodu vereceğiz. sevgiline ya da kankalarına gönder; TalApp'i indirip kodu yazınca hattına katılırlar.
         </Text>
       </Glass>
     </StepShell>
@@ -1098,7 +1098,7 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Talepp+ (RevenueCat). Anahtar yokken: geliştirmede test aboneliği, yayında "yakında"
+// TalApp+ (RevenueCat). Anahtar yokken: geliştirmede test aboneliği, yayında "yakında"
 // ─────────────────────────────────────────────────────────────
 function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
   const [sel, setSel] = useState('p10');
@@ -1134,7 +1134,7 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
     setBusy(true);
     try {
       const k = await restore();
-      if (k === 'free') Alert.alert('bulunamadı', 'bu Apple ID\'de aktif Talepp+ aboneliği yok.');
+      if (k === 'free') Alert.alert('bulunamadı', 'bu Apple ID\'de aktif TalApp+ aboneliği yok.');
       else onPlan(k);
     } catch (e) {
       oops();
@@ -1146,7 +1146,7 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
     <Sheet visible={visible} onClose={onClose} colors={colors}>
       <View style={{ alignItems: 'center' }}>
         <Text style={{ fontSize: 58 }}>👑</Text>
-        <HoloText style={styles.payTitle}>Talepp+</HoloText>
+        <HoloText style={styles.payTitle}>TalApp+</HoloText>
         <Text style={styles.paySub}>
           {{
             free: 'ücretsiz talep hakkını kullandın 😩\nama kraliçeler beklemez.',
@@ -1217,7 +1217,7 @@ function InviteSheet({ visible, onClose, line, members, colors, fresh }) {
   };
   const steps = [
     ['📲', 'aşağıdaki butonla davet mesajını gönder (WhatsApp, Instagram, SMS...)'],
-    ['⬇️', 'arkadaşın Talepp\'i indirip kaydolsun'],
+    ['⬇️', 'arkadaşın TalApp\'i indirip kaydolsun'],
     ['🔑', `"kodla katıl"a basıp kodu yazsın: ${line.code}`],
     ['🔔', 'hattına katılınca sana bildirim gelir, artık talep atabilirsiniz'],
   ];
@@ -1478,7 +1478,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
   const settings = () => {
     Alert.alert(`${data.line.emoji} ${data.line.name}`, 'ne yapmak istersin?', [
       { text: 'kişileri davet et 💌', onPress: () => setSheet('invite') },
-      { text: 'Talepp+ planları 👑', onPress: () => openPaywall('browse') },
+      { text: 'TalApp+ planları 👑', onPress: () => openPaywall('browse') },
       ...(isOwner && others.length ? [{ text: 'birini hattan çıkar', onPress: kick }] : []),
       { text: isOwner ? 'hattı sil' : 'hattan ayrıl', style: 'destructive', onPress: leave },
       { text: 'kapat', style: 'cancel' },
@@ -1555,7 +1555,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
               <Text style={styles.quotaHint}>{quotaHint}</Text>
             </View>
             {plan === 'free'
-              ? <ChromeButton small hot title="Talepp+ 👑" onPress={() => openPaywall('browse')} />
+              ? <ChromeButton small hot title="TalApp+ 👑" onPress={() => openPaywall('browse')} />
               : <Pressable onPress={() => openPaywall('browse')}><Sticker text={`👑 ${planOf(plan).short}`} bg={C.butter} rotate="6deg" /></Pressable>}
           </View>
           {limit !== Infinity && limit > 0 ? (

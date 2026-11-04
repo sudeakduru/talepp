@@ -9,7 +9,7 @@
 export const REVENUECAT_IOS_KEY = '';
 
 // App Store Connect'te uygulama kaydı açılınca belli olur, örn. https://apps.apple.com/app/id1234567890
-// Boşken davet mesajında link yerine "App Store'da Talepp'i arat" yazar.
+// Boşken davet mesajında link yerine "App Store'da TalApp'i arat" yazar.
 export const APP_STORE_URL = '';
 
 // Apple abonelik kuralı: abonelik ekranında bu iki bağlantı bulunmalı.
