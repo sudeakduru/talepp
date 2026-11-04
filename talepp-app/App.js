@@ -72,15 +72,15 @@ const REJECT_REASONS = [
   'bunu dün de istedin 👀', 'sistem şu an kapalı 🔌', 'sevgimle reddediyorum 💔',
 ];
 
-// Ücretsiz plan: tüm hatlarda toplam 1 talep. Ücretli planlar günlük ve tüm hatlarda ortak.
-// Fiyatlar şimdilik yer tutucu.
+// Haklar haftalık, tüm hatlarda ortak ve her pazartesi yenilenir.
+// Ücretli planlar haftalık ya da (indirimli) aylık faturalanır; App Store'dan fiyat gelirse o gösterilir.
 const PLANS = [
-  { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: '1 ücretsiz talep', limit: 1 },
-  { k: 'p5', t: 'TalApp+ 5', short: 'PLUS 5', desc: 'günde 5 talep', price: '₺49,99', limit: 5 },
-  { k: 'p10', t: 'TalApp+ 10', short: 'PLUS 10', desc: 'günde 10 talep', price: '₺79,99', limit: 10, badge: 'en popüler 🔥' },
-  { k: 'inf', t: 'TalApp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: '₺129,99', limit: Infinity, badge: 'kraliçe modu 👑' },
+  { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: 'haftada 3 talep', limit: 3 },
+  { k: 'p10', t: 'TalApp+', short: 'PLUS', desc: 'haftada 10 talep', price: { week: '₺39,99', month: '₺99,99' }, limit: 10, badge: 'en popüler 🔥' },
+  { k: 'inf', t: 'TalApp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: { week: '₺69,99', month: '₺179,99' }, limit: Infinity, badge: 'kraliçe modu 👑' },
 ];
 const PAID = PLANS.filter(p => p.k !== 'free');
+const PERIODS = [{ k: 'week', t: 'haftalık', per: '/ hafta' }, { k: 'month', t: 'aylık · indirimli', per: '/ ay' }];
 
 const STATUS = {
   pending: { t: 'BEKLEMEDE', e: '⏳', bg: '#FFF3A3' },
@@ -170,20 +170,29 @@ const trUpper = s => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toUpperCase();
 const initial = name => trUpper((name || '?').trim()[0] || '?');
 
 const planOf = k => PLANS.find(p => p.k === k) || PLANS[0];
-const sentToday = (requests, id) => requests.filter(r => r.from === id && r.day === todayKey()).length;
-// "ben" bütün hatlarda aynı kişi: günlük sayım tüm hatlardan toplanır
-const myUsedToday = store => store.lines.reduce((n, l) => n + sentToday(l.requests, l.meId), 0);
+// Bu haftanın pazartesi 00:00'ı: haftalık haklar buradan sayılır
+function weekStart() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.getTime();
+}
+const sentThisWeek = (requests, id) => {
+  const w = weekStart();
+  return requests.filter(r => r.from === id && r.createdAt >= w).length;
+};
+// "ben" bütün hatlarda aynı kişi: haftalık sayım tüm hatlardan toplanır
+const myUsedWeek = store => store.lines.reduce((n, l) => n + sentThisWeek(l.requests, l.meId), 0);
 const meName = l => ((l && l.members.find(m => m.id === l.meId)) || { name: '' }).name;
 const userNameOf = user => (user && user.user_metadata && user.user_metadata.name) || '';
 
-function quotaOf(plan, freeUsed, usedToday) {
-  if (plan === 'free') return { limit: 1, used: freeUsed ? 1 : 0 };
-  return { limit: planOf(plan).limit, used: usedToday };
-}
+const quotaOf = (plan, used) => ({ limit: planOf(plan).limit, used });
 function quotaHintOf(plan, left) {
-  if (plan === 'free') return left > 0 ? '🎁 1 talep bizden · tüm hatlarında geçerli' : 'ücretsiz hakkını kullandın 💅 devam için TalApp+';
+  if (plan === 'free') {
+    return left > 0 ? '🎁 haftada 3 ücretsiz talep · her pazartesi yenilenir' : 'bu haftanın ücretsiz hakları bitti 💅 pazartesi yenilenir ya da TalApp+';
+  }
   const p = planOf(plan);
-  return p.limit === Infinity ? 'kraliçe modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her gece yenilenir`;
+  return p.limit === Infinity ? 'kraliçe modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her pazartesi yenilenir`;
 }
 
 const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
