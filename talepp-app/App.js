@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, Pressable, ScrollView, StyleSheet, Animated, Easing,
-  Image, Modal, Share, Alert, KeyboardAvoidingView, Platform, Dimensions, Linking, Keyboard,
+  Image, Modal, Share, Alert, KeyboardAvoidingView, Platform, Dimensions, Linking, Keyboard, AppState, RefreshControl,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,12 +12,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black } from '@expo-google-fonts/unbounded';
 import { supabase } from './supabase';
+import * as api from './api';
+import { registerPush, clearPush, onPushOpen } from './push';
+import { purchasesEnabled, initPurchases, onPlanChange, getPackages, buy, restore, logOutPurchases } from './purchases';
+import { APP_STORE_URL, TERMS_URL, PRIVACY_URL } from './config';
 
 // ─────────────────────────────────────────────────────────────
 // Sabitler
 // ─────────────────────────────────────────────────────────────
-const STORE_KEY = 'talepp:v2';
-const OLD_KEY = 'talepp:v1';
+// Sunucudaki verinin telefondaki kopyası: açılışta internet beklemeden ekran dolsun
+const STORE_KEY = 'talepp:v3';
 
 const F = { med: 'Unbounded_500Medium', bold: 'Unbounded_700Bold', black: 'Unbounded_900Black' };
 
@@ -139,10 +143,22 @@ function timeAgo(ts) {
 }
 
 const TR_MAP = { ç: 'C', Ç: 'C', ğ: 'G', Ğ: 'G', ı: 'I', İ: 'I', i: 'I', ö: 'O', Ö: 'O', ş: 'S', Ş: 'S', ü: 'U', Ü: 'U' };
+// Davet kodu: hattın adından 4 harf + tahmin edilmesi zor 5 karakter (0/O, 1/I gibi karışanlar yok)
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function makeCode(name) {
   const base = name.split('').map(ch => TR_MAP[ch] || ch.toUpperCase()).join('').replace(/[^A-Z]/g, '').slice(0, 4);
-  return `${(base || 'TLPP').padEnd(4, 'X')}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const tail = Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
+  return `${(base || 'TLPP').padEnd(4, 'X')}-${tail}`;
 }
+
+const inviteMessage = line => [
+  `${line.emoji} "${line.name}" talep hattıma katıl! 💌`,
+  `1) Talepp'i indir: ${APP_STORE_URL || 'App Store\'da "Talepp" diye arat'}`,
+  '2) Kaydol, "kodla katıl"a bas',
+  `3) Kodu yaz: ${line.code}`,
+].join('\n');
+
+const oops = () => Alert.alert('olmadı 😵', 'internetini kontrol edip tekrar dener misin?');
 // toUpperCase Türkçe i/ı'yı bilmiyor
 const trUpper = s => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toUpperCase();
 const initial = name => trUpper((name || '?').trim()[0] || '?');
@@ -152,6 +168,7 @@ const sentToday = (requests, id) => requests.filter(r => r.from === id && r.day 
 // "ben" bütün hatlarda aynı kişi: günlük sayım tüm hatlardan toplanır
 const myUsedToday = store => store.lines.reduce((n, l) => n + sentToday(l.requests, l.meId), 0);
 const meName = l => ((l && l.members.find(m => m.id === l.meId)) || { name: '' }).name;
+const userNameOf = user => (user && user.user_metadata && user.user_metadata.name) || '';
 
 function quotaOf(plan, freeUsed, usedToday) {
   if (plan === 'free') return { limit: 1, used: freeUsed ? 1 : 0 };
