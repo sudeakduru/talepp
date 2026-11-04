@@ -1566,27 +1566,33 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
 // ─────────────────────────────────────────────────────────────
 // Ana sayfa: tüm hatlar
 // ─────────────────────────────────────────────────────────────
-// onAccount: giriş yapılmışsa hesap menüsü (demo modunda yok)
-function Lines({ store, userName, onOpen, onNew, onAccount }) {
+function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, reload }) {
   const insets = useSafeAreaInsets();
   const { limit, used } = quotaOf(store.plan, store.freeUsed, myUsedToday(store));
   const left = Math.max(0, limit - used);
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => { setRefreshing(true); await reload(); setRefreshing(false); };
+  const join = async (code, name) => {
+    const res = await onJoin(code, name);
+    if (res === 'ok') setJoinOpen(false);
+    return res;
+  };
   return (
     <HoloBg colors={THEMES.bubblegum.colors}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: insets.bottom + 130 }}
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: insets.bottom + 190 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.ink} />}
       >
         <View style={styles.homeHead}>
           <View style={{ flex: 1 }}>
             <Text style={styles.kicker}>{userName ? `selam ${userName} 👋` : 'ana sayfa ✦'}</Text>
             <HoloText style={styles.hubTitle}>hatlarım</HoloText>
           </View>
-          {onAccount ? (
-            <Pressable onPress={() => { tap(); onAccount(); }} hitSlop={10} style={styles.gear}>
-              <Text style={{ fontSize: 18 }}>👤</Text>
-            </Pressable>
-          ) : null}
+          <Pressable onPress={() => { tap(); onAccount(); }} hitSlop={10} style={styles.gear}>
+            <Text style={{ fontSize: 18 }}>👤</Text>
+          </Pressable>
         </View>
 
         <Glass style={{ marginTop: 14 }}>
@@ -1599,7 +1605,9 @@ function Lines({ store, userName, onOpen, onNew, onAccount }) {
           <Glass style={{ alignItems: 'center', paddingVertical: 34, marginTop: 18 }}>
             <Text style={{ fontSize: 54 }}>🫧</Text>
             <Text style={styles.emptyTitle}>henüz hattın yok</Text>
-            <Text style={styles.emptySub}>aşağıdan ilk talep hattını kur ✦{'\n'}sevgilin, kankaların, ev arkadaşların...</Text>
+            <Text style={styles.emptySub}>
+              kendi hattını kur ya da sana gelen davet koduyla bir hatta katıl ✦{'\n'}sevgilin, kankaların, ev arkadaşların...
+            </Text>
           </Glass>
         ) : null}
 
@@ -1622,8 +1630,11 @@ function Lines({ store, userName, onOpen, onNew, onAccount }) {
       </ScrollView>
 
       <View style={[styles.fabWrap, { bottom: insets.bottom + 14 }]} pointerEvents="box-none">
+        <ChromeButton title="🔑 davet kodum var · kodla katıl" onPress={() => setJoinOpen(true)} style={{ marginBottom: 12 }} />
         <ChromeButton hot big title="＋ YENİ HAT KUR" onPress={onNew} />
       </View>
+
+      <JoinSheet visible={joinOpen} onClose={() => setJoinOpen(false)} onJoin={join} myName={userName} />
     </HoloBg>
   );
 }
