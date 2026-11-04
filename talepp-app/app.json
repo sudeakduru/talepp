@@ -19,7 +19,9 @@
         {
           "photosPermission": "Taleplerine görsel eklemek için galerine erişim gerekiyor."
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-font"
     ]
   }
 }
