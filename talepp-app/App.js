@@ -809,8 +809,8 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
 
   const pick = async () => {
     try {
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true });
-      if (!res.canceled && res.assets && res.assets.length) setImage(res.assets[0].uri);
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6, allowsEditing: true, base64: true });
+      if (!res.canceled && res.assets && res.assets.length) setImage({ uri: res.assets[0].uri, base64: res.assets[0].base64 });
     } catch (e) {
       Alert.alert('olmadı 😵', 'görsel seçilemedi, tekrar dener misin?');
     }
@@ -887,7 +887,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
       <Label style={{ marginTop: 16 }}>görsel / ilham</Label>
       {image ? (
         <View>
-          <Image source={{ uri: image }} style={styles.formImg} />
+          <Image source={{ uri: image.uri }} style={styles.formImg} />
           <Pressable onPress={() => setImage(null)} style={styles.imgRemove}><Text style={{ color: '#fff', fontFamily: F.bold }}>✕</Text></Pressable>
         </View>
       ) : (
@@ -899,8 +899,8 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
       )}
 
       <ChromeButton
-        hot big title="talebi fırlat 🚀" disabled={!title.trim() || !to || timeBad} style={{ marginTop: 26 }}
-        onPress={() => onSend({ to, catId, title, desc, urgency, image, date, time: time || null, place })}
+        hot big title={busy ? 'fırlatılıyor... 🚀' : 'talebi fırlat 🚀'} disabled={busy || !title.trim() || !to || timeBad}
+        style={{ marginTop: 26 }} onPress={submit}
       />
     </Sheet>
   );
@@ -914,7 +914,7 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
   const [text, setText] = useState('');
   useEffect(() => { if (visible) { setMode(null); setText(''); } }, [visible, r && r.id]);
 
-  const nameOf = id => (data.members.find(m => m.id === id) || { name: '?' }).name;
+  const nameOf = id => (data.members.find(m => m.id === id) || { name: 'eski üye' }).name;
   const body = () => {
     if (!r) return null;
     const cat = data.line.cats.find(c => c.id === r.catId);
@@ -1044,6 +1044,13 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
             </View>
           ))}
         </Glass>
+
+        {!isFrom ? (
+          <View style={styles.safetyRow}>
+            <Pressable onPress={() => act.report(r)} hitSlop={8}><Text style={styles.safetyTxt}>🚩 şikayet et</Text></Pressable>
+            <Pressable onPress={() => act.block(r.from)} hitSlop={8}><Text style={styles.safetyTxt}>🚫 {nameOf(r.from)}'i engelle</Text></Pressable>
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -1052,10 +1059,50 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Talepp+ (şimdilik demo; gerçek ödeme sonraki adımlarda)
+// Talepp+ (RevenueCat). Anahtar yokken: geliştirmede test aboneliği, yayında "yakında"
 // ─────────────────────────────────────────────────────────────
-function PaywallSheet({ visible, onClose, reason, plan, colors, onSubscribe }) {
+function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
   const [sel, setSel] = useState('p10');
+  const [pkgs, setPkgs] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const live = purchasesEnabled();
+
+  useEffect(() => {
+    if (visible && live) getPackages().then(setPkgs);
+  }, [visible]);
+
+  const priceOf = p => (pkgs && pkgs[p.k] ? pkgs[p.k].product.priceString : p.price);
+
+  const subscribe = async () => {
+    if (!live) {
+      if (__DEV__) onPlan(sel, true); // Expo Go'da denemek için
+      else Alert.alert('çok yakında ✦', 'abonelik App Store sürümünde aktif olacak.');
+      return;
+    }
+    const pkg = pkgs && pkgs[sel];
+    if (!pkg) { oops(); return; }
+    setBusy(true);
+    try {
+      onPlan(await buy(pkg));
+    } catch (e) {
+      if (!e.userCancelled) oops();
+    }
+    setBusy(false);
+  };
+
+  const restoreBuys = async () => {
+    if (!live) { Alert.alert('geri yükle', 'abonelik App Store sürümünde aktif olacak ✦'); return; }
+    setBusy(true);
+    try {
+      const k = await restore();
+      if (k === 'free') Alert.alert('bulunamadı', 'bu Apple ID\'de aktif Talepp+ aboneliği yok.');
+      else onPlan(k);
+    } catch (e) {
+      oops();
+    }
+    setBusy(false);
+  };
+
   return (
     <Sheet visible={visible} onClose={onClose} colors={colors}>
       <View style={{ alignItems: 'center' }}>
