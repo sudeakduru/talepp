@@ -1,8 +1,9 @@
--- Talepp veritabanı şeması
--- Supabase panelinde: SQL Editor → New query → bu dosyanın tamamını yapıştır → Run
+-- Talepp veritabanı şeması (Yumi ile ortak Supabase projesinde)
+-- Supabase panelinde Yumi projesini aç: SQL Editor → New query → bu dosyanın tamamını yapıştır → Run
+-- Yumi'nin tablolarına dokunmaz; Talepp'in her şeyi "talepp_" ile başlar.
 
--- Kullanıcı profili: kayıtta girilen ad, yaş ve e-posta (her kullanıcıya bir satır)
-create table public.profiles (
+-- Kullanıcı profili: kayıtta girilen ad, yaş ve e-posta (her Talepp kullanıcısına bir satır)
+create table public.talepp_profiles (
   id uuid primary key references auth.users on delete cascade,
   email text,
   name text not null default '',
@@ -10,47 +11,40 @@ create table public.profiles (
   created_at timestamptz not null default now()
 );
 
--- Kayıt olunca profil satırı otomatik açılır. Ad ve yaş, uygulamanın signUp sırasında
--- gönderdiği bilgilerden (user metadata) alınır; e-posta onayı beklenirken de çalışır.
-create or replace function public.handle_new_user()
+-- Talepp'ten kayıt olunca profil satırı otomatik açılır. Uygulama signUp sırasında
+-- app = 'talepp' gönderir; Yumi'den gelen kayıtlar bu yüzden etkilenmez.
+-- E-posta onayı beklenirken de çalışır.
+create or replace function public.talepp_handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, email, name, age)
-  values (
-    new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data ->> 'name', ''),
-    nullif(new.raw_user_meta_data ->> 'age', '')::int
-  );
+  if new.raw_user_meta_data ->> 'app' = 'talepp' then
+    insert into public.talepp_profiles (id, email, name, age)
+    values (
+      new.id,
+      new.email,
+      coalesce(new.raw_user_meta_data ->> 'name', ''),
+      nullif(new.raw_user_meta_data ->> 'age', '')::int
+    );
+  end if;
   return new;
 end;
 $$;
 
-create trigger on_auth_user_created
+create trigger on_talepp_user_created
   after insert on auth.users
-  for each row execute function public.handle_new_user();
+  for each row execute function public.talepp_handle_new_user();
 
 -- Güvenlik: herkes yalnızca kendi profilini görebilir ve değiştirebilir
-alter table public.profiles enable row level security;
+alter table public.talepp_profiles enable row level security;
 
-create policy "Kendi profilini oku" on public.profiles
+create policy "Talepp: kendi profilini oku" on public.talepp_profiles
   for select using ((select auth.uid()) = id);
-create policy "Kendi profilini güncelle" on public.profiles
+create policy "Talepp: kendi profilini güncelle" on public.talepp_profiles
   for update using ((select auth.uid()) = id);
 
--- "Hesabımı sil" (App Store kuralı): kullanıcı yalnızca kendi hesabını siler, profil de otomatik silinir
-create or replace function public.delete_user()
-returns void
-language sql
-security definer
-set search_path = ''
-as $$
-  delete from auth.users where id = (select auth.uid());
-$$;
-
-revoke execute on function public.delete_user() from public, anon;
-grant execute on function public.delete_user() to authenticated;
+-- "Hesabımı sil" için Yumi'nin public.delete_user() fonksiyonu kullanılır (Yumi'nin schema.sql'inde var).
+-- Hesaplar ortak olduğu için silinen hesap iki uygulamadan da silinir.

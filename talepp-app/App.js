@@ -386,7 +386,8 @@ function AuthScreen({ onDemo }) {
     setBusy(true);
     const res = login
       ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
-      : await supabase.auth.signUp({ email: email.trim(), password, options: { data: { name: name.trim(), age: a } } });
+      // app: 'talepp' → veritabanı profili talepp_profiles'a açar (proje Yumi ile ortak)
+      : await supabase.auth.signUp({ email: email.trim(), password, options: { data: { app: 'talepp', name: name.trim(), age: a } } });
     setBusy(false);
     if (res.error) return setMsg(AUTH_ERRORS[res.error.message] || 'bir şeyler ters gitti 😵 internetini kontrol edip tekrar dener misin?');
     // oturum açıldıysa App'teki onAuthStateChange ekranı kendisi değiştirir
@@ -1460,7 +1461,7 @@ export default function App() {
   const active = store.lines.find(l => l.id === store.activeId);
 
   // Hatlar şimdilik sadece bu telefonda; çıkış yapınca duruyorlar, hesap silinince temizleniyor
-  const deleteAccount = () => Alert.alert('hesabın silinsin mi? 🥺', 'hesabın ve profil bilgilerin kalıcı olarak silinir, bu telefondaki hatlar da temizlenir.', [
+  const deleteAccount = () => Alert.alert('hesabın silinsin mi? 🥺', 'hesabın ve profil bilgilerin kalıcı olarak silinir, bu telefondaki hatlar da temizlenir. aynı hesapla Yumi kullanıyorsan oradaki hesabın da silinir.', [
     { text: 'vazgeç', style: 'cancel' },
     {
       text: 'hesabımı sil', style: 'destructive',
