@@ -1248,15 +1248,21 @@ function JoinSheet({ visible, onClose, onJoin, myName }) {
 // ─────────────────────────────────────────────────────────────
 // Ana ekran
 // ─────────────────────────────────────────────────────────────
-// data: açık olan hat. Plan ve ücretsiz hak hesap düzeyinde, store'da tutuluyor.
-function Home({ data, setData, store, setStore, onHome }) {
+// data: açık olan hat. Plan ve ücretsiz hak hesap düzeyinde, store'da.
+// Değişiklikler önce ekrana yansır, sonra sunucuya gider; sunucu reddederse reload() doğru hali getirir.
+// fresh: hat yeni kuruldu, davet ekranıyla açılır
+function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh }) {
   const insets = useSafeAreaInsets();
   const colors = (THEMES[data.line.theme] || THEMES.bubblegum).colors;
-  const viewer = data.members.find(m => m.id === data.viewerId) || data.members[0];
-  const nameOf = id => (data.members.find(m => m.id === id) || { name: '?' }).name;
+  const viewer = data.members.find(m => m.id === data.meId) || { id: data.meId, name: '' };
+  const others = data.members.filter(m => m.id !== viewer.id);
+  const isOwner = data.owner === data.meId;
+  const nameOf = id => (data.members.find(m => m.id === id) || { name: 'eski üye' }).name;
 
   const [tab, setTab] = useState('in');
-  const [sheet, setSheet] = useState(null); // 'new' | 'detail' | 'paywall' | 'invite'
+  const [sheet, setSheet] = useState(fresh ? 'invite' : null); // 'new' | 'detail' | 'paywall' | 'invite'
+  const [freshInvite, setFreshInvite] = useState(!!fresh);
+  const [refreshing, setRefreshing] = useState(false);
   const [detailId, setDetailId] = useState(null);
   const [paywallReason, setPaywallReason] = useState('browse');
   const [toastMsg, setToastMsg] = useState(null);
@@ -1281,93 +1287,146 @@ function Home({ data, setData, store, setStore, onHome }) {
     else setSheet('paywall');
   };
 
-  // "ben" için hak tüm hatlarda ortak; demo'da başkasının gözünden bakınca o kişinin hakkı bu hatta
-  const isMe = viewer.id === data.meId;
-  const plan = isMe ? store.plan : viewer.plan;
-  const { limit, used } = quotaOf(
-    plan,
-    isMe ? store.freeUsed : !!viewer.freeUsed,
-    isMe ? myUsedToday(store) : sentToday(data.requests, viewer.id),
-  );
+  const plan = store.plan;
+  const { limit, used } = quotaOf(plan, store.freeUsed, myUsedToday(store));
   const left = Math.max(0, limit - used);
   const quotaHint = quotaHintOf(plan, left);
   const limitReason = plan === 'free' ? 'free' : 'limit';
 
-  const updateReq = (id, fn) => setData(d => ({ ...d, requests: d.requests.map(r => (r.id === id ? fn(r) : r)) }));
-  const withH = (r, type, text) => ({ ...r, history: [...r.history, { type, text, by: viewer.id, at: Date.now() }] });
   const celebrate = msg => { success(); setBurst(Date.now()); toast(msg); };
+  const failed = () => { toast('😵 olmadı, internetini kontrol et'); reload(); };
+  const onRefresh = async () => { setRefreshing(true); await reload(); setRefreshing(false); };
+
+  // Durum değişikliği: ekranda hemen, sunucuda arkadan (karşı tarafa bildirimi sunucu atar)
+  const change = (r, type, status, text) => {
+    const history = [...r.history, { type, text, by: viewer.id, at: Date.now() }];
+    setData(d => ({ ...d, requests: d.requests.map(x => (x.id === r.id ? { ...x, status, history } : x)) }));
+    api.updateRequest(r.id, { status, history }).catch(failed);
+  };
 
   const act = {
     approve: r => {
-      updateReq(r.id, x => ({ ...withH(x, 'approved'), status: 'approved' }));
+      change(r, 'approved', 'approved');
       closeThen(() => celebrate(`💖 onaylandı! ${nameOf(r.from)} uçuyor şu an`));
     },
     reject: (r, reason) => {
-      updateReq(r.id, x => ({ ...withH(x, 'rejected', reason), status: 'rejected' }));
+      change(r, 'rejected', 'rejected', reason);
       closeThen(() => toast('💔 reddedildi. acımasızsın ama haklısın'));
     },
     nego: (r, text) => {
-      updateReq(r.id, x => ({ ...withH(x, 'nego', text), status: 'nego' }));
+      change(r, 'nego', 'nego', text);
       closeThen(() => toast('🤝 karşı teklif masada'));
     },
     accept: r => {
-      updateReq(r.id, x => ({ ...withH(x, 'accepted'), status: 'approved' }));
+      change(r, 'accepted', 'approved');
       closeThen(() => celebrate('✅ anlaştınız! talep onaylandı'));
     },
     appeal: (r, text) => {
-      updateReq(r.id, x => ({ ...withH(x, 'appeal', text), status: 'appeal' }));
+      change(r, 'appeal', 'appeal', text);
       closeThen(() => toast('⚖️ itiraz edildi, mahkeme toplanıyor'));
     },
     withdraw: r => {
       setData(d => ({ ...d, requests: d.requests.filter(x => x.id !== r.id) }));
+      api.deleteRequest(r.id).catch(failed);
       closeThen(() => toast('🫥 talep geri çekildi'));
     },
+    report: r => Alert.alert('neden şikayet ediyorsun? 🚩', 'şikayetin 24 saat içinde incelenir.', [
+      ...['uygunsuz içerik', 'taciz / zorbalık', 'spam'].map(reason => ({
+        text: reason,
+        onPress: () => api.reportRequest(viewer.id, r, reason)
+          .then(() => closeThen(() => toast('🚩 şikayetin alındı, teşekkürler')))
+          .catch(oops),
+      })),
+      { text: 'vazgeç', style: 'cancel' },
+    ]),
+    block: id => Alert.alert(`${nameOf(id)} engellensin mi? 🚫`, 'sana talep atamaz, talepleri de sana görünmez.', [
+      { text: 'vazgeç', style: 'cancel' },
+      {
+        text: 'engelle', style: 'destructive',
+        onPress: () => api.blockUser(viewer.id, id)
+          .then(() => { closeThen(() => toast('🚫 engellendi')); reload(); })
+          .catch(oops),
+      },
+    ]),
   };
 
-  const send = ({ to, catId, title, desc, urgency, image, date, time, place }) => {
-    if (left <= 0) { openPaywall(limitReason); return; }
-    const now = Date.now();
-    const r = {
-      id: uid(), from: viewer.id, to, catId, title: title.trim(), desc: desc.trim(), urgency, image,
-      date, time, place: place.trim() || null,
-      status: 'pending', createdAt: now, day: todayKey(), history: [{ type: 'created', by: viewer.id, at: now }],
-    };
-    // ücretsiz hak bir kez harcanınca talep geri çekilse de geri gelmez
-    setData(d => ({
-      ...d,
-      requests: [r, ...d.requests],
-      members: isMe ? d.members : d.members.map(m => (m.id === viewer.id ? { ...m, freeUsed: true } : m)),
-    }));
-    if (isMe) setStore(s => ({ ...s, freeUsed: true }));
+  // true dönerse form kapanır
+  const send = async ({ to, catId, title, desc, urgency, image, date, time, place }) => {
+    if (left <= 0) { openPaywall(limitReason); return false; }
+    try {
+      const r = await api.sendRequest(data.id, {
+        from: viewer.id, to, catId, title: title.trim(), desc: desc.trim(), urgency, date, time,
+        place: place.trim() || null, day: todayKey(), history: [{ type: 'created', by: viewer.id, at: Date.now() }],
+      }, image && image.base64);
+      // görsel, sunucudan imzalı adres gelene kadar telefondaki dosyadan gösterilir
+      setData(d => ({ ...d, requests: [{ ...r, image: image ? image.uri : null }, ...d.requests] }));
+      // ücretsiz hak bir kez harcanınca talep geri çekilse de geri gelmez (sunucu da işaretler)
+      setStore(s => ({ ...s, freeUsed: true }));
+    } catch (e) {
+      oops();
+      return false;
+    }
     setTab('out');
-    closeThen(() => { success(); toast(`🚀 talep fırlatıldı · ${nameOf(to)} bildirim aldı`); });
+    closeThen(() => { success(); toast(`🚀 talep fırlatıldı · ${nameOf(to)} bildirim aldı 🔔`); });
+    return true;
   };
 
   const addCat = t => {
     const c = { id: uid(), e: '✨', t };
-    setData(d => ({ ...d, line: { ...d.line, cats: [...d.line.cats, c] } }));
+    const cats = [...data.line.cats, c];
+    setData(d => ({ ...d, line: { ...d.line, cats } }));
+    api.setCats(data.id, cats).catch(failed);
     return c.id;
   };
 
-  const subscribe = k => {
-    if (isMe) setStore(s => ({ ...s, plan: k }));
-    else setData(d => ({ ...d, members: d.members.map(m => (m.id === viewer.id ? { ...m, plan: k } : m)) }));
+  const planChanged = k => {
+    onPlan(k);
     closeThen(() => celebrate(`👑 ${planOf(k).t} aktif!`));
   };
 
-  const onFab = () => (left <= 0 ? openPaywall(limitReason) : setSheet('new'));
+  const onFab = () => {
+    if (!others.length) setSheet('invite');
+    else if (left <= 0) openPaywall(limitReason);
+    else setSheet('new');
+  };
+
+  const leave = () => Alert.alert(
+    isOwner ? 'hat silinsin mi?' : 'hattan ayrılıyor musun?',
+    isOwner ? 'hat ve içindeki tüm talepler herkes için silinir.' : 'bu hattaki talepleri artık göremezsin. kodla tekrar katılabilirsin.',
+    [
+      { text: 'vazgeç', style: 'cancel' },
+      {
+        text: isOwner ? 'hattı sil' : 'ayrıl', style: 'destructive',
+        onPress: async () => {
+          try {
+            if (isOwner) await api.deleteLine(data.id);
+            else await api.removeMember(data.id, viewer.id);
+            setData(null);
+          } catch (e) {
+            oops();
+          }
+        },
+      },
+    ],
+  );
+
+  const kick = () => Alert.alert('kimi hattan çıkarmak istiyorsun?', 'çıkan kişi bu hattaki talepleri göremez.', [
+    ...others.map(m => ({
+      text: m.name,
+      onPress: () => Alert.alert(`${m.name} hattan çıkarılsın mı?`, 'davet kodunu bildiği için tekrar katılabilir; istemiyorsan talebinden onu engelle.', [
+        { text: 'vazgeç', style: 'cancel' },
+        { text: 'çıkar', style: 'destructive', onPress: () => api.removeMember(data.id, m.id).then(reload).catch(oops) },
+      ]),
+    })),
+    { text: 'vazgeç', style: 'cancel' },
+  ]);
 
   const settings = () => {
     Alert.alert(`${data.line.emoji} ${data.line.name}`, 'ne yapmak istersin?', [
-      { text: 'arkadaş davet et 💌', onPress: () => setSheet('invite') },
+      { text: 'kişileri davet et 💌', onPress: () => setSheet('invite') },
       { text: 'Talepp+ planları 👑', onPress: () => openPaywall('browse') },
-      {
-        text: 'hattı sil', style: 'destructive',
-        onPress: () => Alert.alert('emin misin?', 'hat ve tüm talepler silinecek.', [
-          { text: 'vazgeç', style: 'cancel' },
-          { text: 'sıfırla', style: 'destructive', onPress: () => setData(null) },
-        ]),
-      },
+      ...(isOwner && others.length ? [{ text: 'birini hattan çıkar', onPress: kick }] : []),
+      { text: isOwner ? 'hattı sil' : 'hattan ayrıl', style: 'destructive', onPress: leave },
       { text: 'kapat', style: 'cancel' },
     ]);
   };
@@ -1389,6 +1448,7 @@ function Home({ data, setData, store, setStore, onHome }) {
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: insets.bottom + 130 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.ink} />}
       >
         <View style={styles.homeHead}>
           <View style={styles.lineEmoji}><Text style={{ fontSize: 30 }}>{data.line.emoji}</Text></View>
@@ -1404,21 +1464,32 @@ function Home({ data, setData, store, setStore, onHome }) {
           </Pressable>
         </View>
 
-        <Text style={[styles.label, { marginTop: 16 }]}>👀 kimin gözünden bakıyorsun (demo)</Text>
+        <Text style={[styles.label, { marginTop: 16 }]}>bu hatta kimler var 🫶</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
           {data.members.map((m, i) => {
-            const on = m.id === viewer.id;
+            const me = m.id === viewer.id;
             return (
-              <Pressable key={m.id} onPress={() => { tap(); setData(d => ({ ...d, viewerId: m.id })); }} style={[styles.viewerChip, on && styles.viewerChipOn]}>
-                <Avatar name={m.name} index={i} size={30} active={on} />
-                <Text style={[styles.viewerName, on && { color: '#fff' }]}>{m.name}</Text>
-              </Pressable>
+              <View key={m.id} style={[styles.viewerChip, me && styles.viewerChipOn]}>
+                <Avatar name={m.name} index={i} size={30} active={me} />
+                <Text style={[styles.viewerName, me && { color: '#fff' }]}>{me ? `${m.name} (sen)` : m.name}</Text>
+              </View>
             );
           })}
-          <Pressable onPress={() => { tap(); setSheet('invite'); }} style={styles.viewerChip}>
-            <Text style={styles.viewerName}>＋ davet</Text>
+          <Pressable onPress={() => { tap(); setSheet('invite'); }} style={[styles.viewerChip, styles.inviteChip]}>
+            <Text style={[styles.viewerName, { color: C.hot }]}>＋ davet et</Text>
           </Pressable>
         </ScrollView>
+
+        {!others.length ? (
+          <Glass style={{ marginTop: 14, alignItems: 'center' }}>
+            <Text style={{ fontSize: 40 }}>💌</Text>
+            <Text style={styles.emptyTitle}>hattında henüz kimse yok</Text>
+            <Text style={styles.emptySub}>
+              talep atabilmek için en az bir kişiyi davet et. kodu alan kişi Talepp'i indirip "kodla katıl"a yazınca burada görünür.
+            </Text>
+            <ChromeButton hot title="💌 kişileri davet et" onPress={() => setSheet('invite')} style={{ marginTop: 16 }} />
+          </Glass>
+        ) : null}
 
         <Glass style={{ marginTop: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1464,7 +1535,7 @@ function Home({ data, setData, store, setStore, onHome }) {
       </ScrollView>
 
       <View style={[styles.fabWrap, { bottom: insets.bottom + 14 }]} pointerEvents="box-none">
-        <ChromeButton hot big title="✦ TALEP AT ✦" onPress={onFab} />
+        <ChromeButton hot big title={others.length ? '✦ TALEP AT ✦' : '💌 KİŞİLERİ DAVET ET'} onPress={onFab} />
       </View>
 
       {toastMsg ? (
@@ -1483,8 +1554,11 @@ function Home({ data, setData, store, setStore, onHome }) {
 
       <NewRequestSheet visible={sheet === 'new'} onClose={() => setSheet(null)} data={data} viewer={viewer} colors={colors} onSend={send} onAddCat={addCat} left={left} />
       <DetailSheet visible={sheet === 'detail'} onClose={() => setSheet(null)} r={detail} data={data} viewer={viewer} colors={colors} act={act} />
-      <PaywallSheet visible={sheet === 'paywall'} onClose={() => setSheet(null)} reason={paywallReason} plan={plan} colors={colors} onSubscribe={subscribe} />
-      <InviteSheet visible={sheet === 'invite'} onClose={() => setSheet(null)} line={data.line} colors={colors} />
+      <PaywallSheet visible={sheet === 'paywall'} onClose={() => setSheet(null)} reason={paywallReason} plan={plan} colors={colors} onPlan={planChanged} />
+      <InviteSheet
+        visible={sheet === 'invite'} onClose={() => { setSheet(null); setFreshInvite(false); }}
+        line={data.line} members={data.members.length} colors={colors} fresh={freshInvite}
+      />
     </HoloBg>
   );
 }
