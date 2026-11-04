@@ -860,7 +860,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
       <View style={styles.wrap}>
         {others.map(m => (
           <Pressable key={m.id} onPress={() => { tap(); setTo(m.id); }} style={[styles.toChip, to === m.id && styles.chipOn]}>
-            <Avatar name={m.name} index={data.members.findIndex(x => x.id === m.id)} size={26} />
+            <Avatar name={m.name} index={data.members.findIndex(x => x.id === m.id)} size={26} uri={m.avatar} />
             <Text style={[styles.chipTxt, { marginLeft: 8 }, to === m.id && styles.chipTxtOn]}>{m.name}</Text>
           </Pressable>
         ))}
@@ -872,13 +872,17 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
         <Chip label="＋ yeni başlık" on={newCat !== null} onPress={() => setNewCat(newCat === null ? '' : null)} />
       </View>
       {newCat !== null ? (
-        <View style={styles.addRow}>
-          <TextInput
-            value={newCat} onChangeText={setNewCat} placeholder="yeni başlık (örn. Boba 🧋)" placeholderTextColor="#B79BCB"
-            style={[styles.input, { flex: 1 }]} maxLength={24} autoFocus onSubmitEditing={addCat} returnKeyType="done"
-          />
-          <ChromeButton title="ekle" onPress={addCat} style={{ marginLeft: 10 }} />
-        </View>
+        <>
+          <View style={styles.addRow}>
+            <View style={styles.emojiNow}><Text style={{ fontSize: 22 }}>{newEmoji}</Text></View>
+            <TextInput
+              value={newCat} onChangeText={setNewCat} placeholder="yeni başlık (örn. Boba)" placeholderTextColor="#B79BCB"
+              style={[styles.input, { flex: 1, marginLeft: 10 }]} maxLength={24} autoFocus onSubmitEditing={addCat} returnKeyType="done"
+            />
+            <ChromeButton title="ekle" onPress={addCat} style={{ marginLeft: 10 }} />
+          </View>
+          <EmojiPick value={newEmoji} onChange={setNewEmoji} />
+        </>
       ) : null}
 
       <Label style={{ marginTop: 20 }}>ne istiyorsun?</Label>
@@ -1200,7 +1204,17 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
 
 // Davet: kodu ve nasıl katılınacağını tek mesajda paylaşır
 function InviteSheet({ visible, onClose, line, members, colors, fresh }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => { if (visible) setCopied(false); }, [visible]);
   const share = () => { Share.share({ message: inviteMessage(line) }).catch(() => {}); };
+  const copy = async () => {
+    try {
+      await Clipboard.setStringAsync(line.code);
+      success();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {}
+  };
   const steps = [
     ['📲', 'aşağıdaki butonla davet mesajını gönder (WhatsApp, Instagram, SMS...)'],
     ['⬇️', 'arkadaşın Talepp\'i indirip kaydolsun'],
@@ -1215,9 +1229,14 @@ function InviteSheet({ visible, onClose, line, members, colors, fresh }) {
         <Text style={styles.paySub}>
           {fresh ? 'şimdi talep atacağın kişileri çağır 💌' : `${line.name} hattında şu an ${members} kişi var.`}
         </Text>
-        <LinearGradient colors={CHROME} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.codeBox}>
-          <Text style={styles.kicker}>davet kodun</Text>
-          <Text style={styles.code}>{line.code}</Text>
+        <LinearGradient colors={CHROME} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.codeBox, styles.codeRow]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.kicker}>davet kodun</Text>
+            <Text style={styles.code} numberOfLines={1} adjustsFontSizeToFit>{line.code}</Text>
+          </View>
+          <Pressable onPress={copy} hitSlop={8} style={[styles.copyBtn, copied && { backgroundColor: C.mint }]}>
+            <Text style={styles.copyTxt}>{copied ? 'kopyalandı ✓' : 'kopyala'}</Text>
+          </Pressable>
         </LinearGradient>
       </View>
 
@@ -1406,8 +1425,8 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
     return true;
   };
 
-  const addCat = t => {
-    const c = { id: uid(), e: '✨', t };
+  const addCat = (t, e) => {
+    const c = { id: uid(), e: e || '✨', t };
     const cats = [...data.line.cats, c];
     setData(d => ({ ...d, line: { ...d.line, cats } }));
     api.setCats(data.id, cats).catch(failed);
@@ -1505,7 +1524,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
             const me = m.id === viewer.id;
             return (
               <View key={m.id} style={[styles.viewerChip, me && styles.viewerChipOn]}>
-                <Avatar name={m.name} index={i} size={30} active={me} />
+                <Avatar name={m.name} index={i} size={30} active={me} uri={m.avatar} />
                 <Text style={[styles.viewerName, me && { color: '#fff' }]}>{me ? `${m.name} (sen)` : m.name}</Text>
               </View>
             );
@@ -1516,14 +1535,16 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
         </ScrollView>
 
         {!others.length ? (
-          <Glass style={{ marginTop: 14, alignItems: 'center' }}>
-            <Text style={{ fontSize: 40 }}>💌</Text>
-            <Text style={styles.emptyTitle}>hattında henüz kimse yok</Text>
-            <Text style={styles.emptySub}>
-              talep atabilmek için en az bir kişiyi davet et. kodu alan kişi Talepp'i indirip "kodla katıl"a yazınca burada görünür.
-            </Text>
-            <ChromeButton hot title="💌 kişileri davet et" onPress={() => setSheet('invite')} style={{ marginTop: 16 }} />
-          </Glass>
+          <Pressable onPress={() => { tap(); setSheet('invite'); }}>
+            <Glass style={styles.aloneCard}>
+              <Text style={{ fontSize: 26 }}>💌</Text>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.aloneTitle}>hattında henüz kimse yok</Text>
+                <Text style={styles.aloneSub}>talep atmak için birini davet et</Text>
+              </View>
+              <Text style={styles.aloneBtn}>davet et ›</Text>
+            </Glass>
+          </Pressable>
         ) : null}
 
         <Glass style={{ marginTop: 14 }}>
@@ -1601,7 +1622,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
 // ─────────────────────────────────────────────────────────────
 // Ana sayfa: tüm hatlar
 // ─────────────────────────────────────────────────────────────
-function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, reload }) {
+function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, reload }) {
   const insets = useSafeAreaInsets();
   const { limit, used } = quotaOf(store.plan, store.freeUsed, myUsedToday(store));
   const left = Math.max(0, limit - used);
@@ -1625,10 +1646,17 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, reload }) {
             <Text style={styles.kicker}>{userName ? `selam ${userName} 👋` : 'ana sayfa ✦'}</Text>
             <HoloText style={styles.hubTitle}>hatlarım</HoloText>
           </View>
-          <Pressable onPress={() => { tap(); onAccount(); }} hitSlop={10} style={styles.gear}>
-            <Text style={{ fontSize: 18 }}>👤</Text>
+          <Pressable onPress={() => { tap(); onAccount(); }} hitSlop={10} style={store.avatar ? null : styles.gear}>
+            {store.avatar
+              ? <Avatar name={userName} index={0} size={48} uri={store.avatar} />
+              : <Text style={{ fontSize: 18 }}>👤</Text>}
           </Pressable>
         </View>
+        {!store.avatar ? (
+          <Pressable onPress={() => { tap(); onAvatar(); }} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
+            <Text style={styles.avatarHint}>📸 profil fotoğrafı ekle (isteğe bağlı)</Text>
+          </Pressable>
+        ) : null}
 
         <Glass style={{ marginTop: 14 }}>
           <Text style={styles.label}>{store.plan === 'free' ? 'talep hakkın' : 'bugünkü talep hakkın'}</Text>
@@ -1720,7 +1748,7 @@ export default function App() {
       const res = await api.fetchAll(id);
       if (userRef.current !== id) return; // bu arada çıkış yapıldı
       setStore(s => ({
-        ...s, userId: id, lines: res.lines, freeUsed: res.freeUsed,
+        ...s, userId: id, lines: res.lines, freeUsed: res.freeUsed, avatar: res.avatar,
         activeId: res.lines.some(l => l.id === s.activeId) ? s.activeId : null,
       }));
     } catch (e) {
@@ -1782,6 +1810,7 @@ export default function App() {
       {
         text: 'hesabımı sil', style: 'destructive',
         onPress: async () => {
+          await api.removeAvatarFiles(user.id);
           const { error } = await supabase.rpc('delete_user');
           if (error) { oops(); return; }
           await logOutPurchases();
@@ -1791,7 +1820,26 @@ export default function App() {
       },
     ],
   );
+  const pickAvatar = async () => {
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], quality: 0.4, allowsEditing: true, aspect: [1, 1], base64: true,
+      });
+      if (res.canceled || !res.assets || !res.assets.length) return;
+      const url = await api.setAvatar(user.id, res.assets[0].base64);
+      setStore(s => ({ ...s, avatar: url }));
+      reload();
+    } catch (e) {
+      oops();
+    }
+  };
+  const removeAvatar = () => api.setAvatar(user.id, null)
+    .then(() => { setStore(s => ({ ...s, avatar: null })); reload(); })
+    .catch(oops);
+
   const account = () => Alert.alert(userName || 'hesabım', user.email, [
+    { text: store.avatar ? 'profil fotoğrafını değiştir 📸' : 'profil fotoğrafı ekle 📸', onPress: pickAvatar },
+    ...(store.avatar ? [{ text: 'fotoğrafı kaldır', onPress: removeAvatar }] : []),
     { text: 'çıkış yap', onPress: signOut },
     { text: 'hesabımı sil', style: 'destructive', onPress: deleteAccount },
     { text: 'kapat', style: 'cancel' },
@@ -1839,7 +1887,7 @@ export default function App() {
   } else {
     screen = (
       <Lines
-        store={store} userName={userName} reload={reload} onAccount={account}
+        store={store} userName={userName} reload={reload} onAccount={account} onAvatar={pickAvatar}
         onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)} onJoin={joinLine}
       />
     );
@@ -2089,6 +2137,23 @@ const styles = StyleSheet.create({
   codeInput: { fontFamily: F.black, fontSize: 20, letterSpacing: 2, textAlign: 'center' },
   inviteChip: { paddingLeft: 14, borderStyle: 'dashed', borderColor: C.hot },
   safetyRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 22, paddingHorizontal: 6 },
+  aloneCard: { flexDirection: 'row', alignItems: 'center', marginTop: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 22 },
+  aloneTitle: { fontFamily: F.bold, fontSize: 13, color: C.ink },
+  aloneSub: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, marginTop: 2 },
+  aloneBtn: { fontFamily: F.bold, fontSize: 12, color: C.hot, marginLeft: 8 },
+  codeRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', paddingHorizontal: 20 },
+  copyBtn: { marginLeft: 12, backgroundColor: C.ink, borderRadius: 999, paddingVertical: 10, paddingHorizontal: 14 },
+  copyTxt: { fontFamily: F.bold, fontSize: 11, color: '#fff' },
+  emojiRow: { gap: 8, paddingVertical: 4, marginTop: 10 },
+  emojiMini: {
+    width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.6)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)',
+  },
+  emojiNow: {
+    width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#fff', borderWidth: 2, borderColor: C.ink,
+  },
+  avatarHint: { fontFamily: F.med, fontSize: 11, color: C.ink, marginTop: 6, textDecorationLine: 'underline' },
   safetyTxt: { fontFamily: F.med, fontSize: 11, color: C.inkSoft, textDecorationLine: 'underline' },
 
   codeBox: { marginTop: 22, borderRadius: 24, paddingVertical: 20, paddingHorizontal: 30, borderWidth: 2, borderColor: C.ink },
