@@ -25,6 +25,12 @@
       "expo-font",
       "expo-notifications",
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "Onaylanan taleplerini tarih ve saatiyle takvimine eklemek için takvim erişimi gerekiyor."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/icon.png",

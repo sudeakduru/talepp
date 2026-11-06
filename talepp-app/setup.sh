@@ -8,7 +8,8 @@ npm install expo@latest
 # Expo paketleri: `expo install` SDK'ya uygun sürümleri seçer
 npx expo install react react-native expo-status-bar expo-linear-gradient expo-image-picker \
   expo-haptics expo-font @react-native-masked-view/masked-view react-native-safe-area-context \
-  @react-native-async-storage/async-storage
+  @react-native-async-storage/async-storage expo-notifications expo-constants expo-splash-screen \
+  expo-clipboard expo-calendar react-native-purchases
 
 # Font: Unbounded (başlıklar)
 npm install @expo-google-fonts/unbounded
