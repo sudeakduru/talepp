@@ -17,6 +17,7 @@ import * as api from './api';
 import { registerPush, clearPush, onPushOpen } from './push';
 import { purchasesEnabled, initPurchases, onPlanChange, getPackages, buy, restore, logOutPurchases } from './purchases';
 import { addToCalendar, syncCalendar } from './calendar';
+import { scheduleReminders, syncReminders, clearReminders } from './reminders';
 import { APP_STORE_URL, TERMS_URL, PRIVACY_URL, SUPPORT_EMAIL } from './config';
 
 // ─────────────────────────────────────────────────────────────
@@ -1000,7 +1001,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
 
       <Label style={{ marginTop: 16 }}>nerede?</Label>
       <TextInput value={place} onChangeText={setPlace} placeholder="📍 Moda sahil, Kadıköy" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
-      <Text style={styles.hint}>gün, saat ve konum isteğe bağlı ✦{'\n'}günü seçersen, onaylanınca telefon takvimine otomatik eklenir 📅</Text>
+      <Text style={styles.hint}>gün, saat ve konum isteğe bağlı ✦{'\n'}günü seçersen, onaylanınca takvimine eklenir 📅 ve 1 gün, 12 saat önce hatırlatılır 🔔</Text>
 
       <Label style={{ marginTop: 16 }}>detaylar (ikna et bakalım)</Label>
       <TextInput
@@ -1470,9 +1471,13 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
     api.updateRequest(r.id, { status, history }).catch(failed);
   };
 
-  // Onaylanan talep telefon takvimine girer; sonuç kutlama mesajına eklenir
-  const toCalendar = r => addToCalendar({ ...r, status: 'approved' }, { line: data.line.name, cat: data.line.cats.find(c => c.id === r.catId) })
-    .then(res => (res === 'added' ? ' · 📅 takvimine eklendi' : ''));
+  // Onaylanan talep telefon takvimine girer ve 1 gün / 12 saat önce hatırlatılır; sonuç kutlama mesajına eklenir
+  const toCalendar = r => {
+    const ok = { ...r, status: 'approved' };
+    const info = { lineId: data.id, line: data.line.name, cat: data.line.cats.find(c => c.id === r.catId) };
+    scheduleReminders(ok, info);
+    return addToCalendar(ok, info).then(res => (res === 'added' ? ' · 📅 takvimine eklendi' : ''));
+  };
 
   const act = {
     approve: r => {
@@ -1751,7 +1756,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
             },
             {
               ref: fabRef, title: others.length ? 'talep at ✦' : 'önce birini davet et 💌',
-              text: `${others.length ? 'ne istediğini yaz' : 'biri hattına katılınca bu buton "✦ TALEP AT ✦" olur'}; gün, saat, konum ve fotoğraf ekleyebilirsin. talep onaylanınca gün ve saatiyle telefon takvimine otomatik eklenir 📅`,
+              text: `${others.length ? 'ne istediğini yaz' : 'biri hattına katılınca bu buton "✦ TALEP AT ✦" olur'}; gün, saat, konum ve fotoğraf ekleyebilirsin. talep onaylanınca gün ve saatiyle telefon takvimine otomatik eklenir 📅 ve 1 gün, 12 saat önce hatırlatılır 🔔`,
             },
             {
               ref: navRef, title: 'ana sayfa ve ayarlar',
@@ -1932,7 +1937,8 @@ export default function App() {
         ...s, userId: id, lines: res.lines, avatar: res.avatar,
         activeId: res.lines.some(l => l.id === s.activeId) ? s.activeId : null,
       }));
-      // başka telefonda onaylanan taleplerim takvime girer; kullanıcıya söylenir
+      // başka telefonda onaylanan taleplerim takvime girer (kullanıcıya söylenir) ve hatırlatması kurulur
+      syncReminders(res.lines).catch(() => {});
       syncCalendar(res.lines).then(added => {
         if (!added.length) return;
         const r = added[0];
@@ -1987,6 +1993,7 @@ export default function App() {
 
   const signOut = async () => {
     await clearPush();
+    await clearReminders();
     await logOutPurchases();
     setStore(EMPTY_STORE);
     await supabase.auth.signOut().catch(() => {});
@@ -2002,6 +2009,7 @@ export default function App() {
           await api.removeAvatarFiles(user.id);
           const { error } = await supabase.rpc('delete_user');
           if (error) { oops(); return; }
+          await clearReminders();
           await logOutPurchases();
           setStore(EMPTY_STORE);
           await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
