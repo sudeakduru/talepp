@@ -16,6 +16,7 @@ import { supabase } from './supabase';
 import * as api from './api';
 import { registerPush, clearPush, onPushOpen } from './push';
 import { purchasesEnabled, initPurchases, onPlanChange, getPackages, buy, restore, logOutPurchases } from './purchases';
+import { addToCalendar, syncCalendar } from './calendar';
 import { APP_STORE_URL, TERMS_URL, PRIVACY_URL, SUPPORT_EMAIL } from './config';
 
 // ─────────────────────────────────────────────────────────────
@@ -77,7 +78,7 @@ const REJECT_REASONS = [
 const PLANS = [
   { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: 'haftada 2 talep', limit: 2 },
   { k: 'p10', t: 'TalApp+', short: 'PLUS', desc: 'haftada 10 talep', price: { week: '₺39,99', month: '₺99,99' }, limit: 10, badge: 'en popüler 🔥' },
-  { k: 'inf', t: 'TalApp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: { week: '₺69,99', month: '₺179,99' }, limit: Infinity, badge: 'kraliçe modu 👑' },
+  { k: 'inf', t: 'TalApp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: { week: '₺69,99', month: '₺179,99' }, limit: Infinity, badge: 'diva modu 👑' },
 ];
 const PAID = PLANS.filter(p => p.k !== 'free');
 const PERIODS = [{ k: 'week', t: 'haftalık', per: '/ hafta' }, { k: 'month', t: 'aylık · indirimli', per: '/ ay' }];
@@ -192,7 +193,7 @@ function quotaHintOf(plan, left) {
     return left > 0 ? '🎁 haftada 2 ücretsiz talep · her pazartesi yenilenir' : 'bu haftanın ücretsiz hakları bitti 💅 pazartesi yenilenir ya da TalApp+';
   }
   const p = planOf(plan);
-  return p.limit === Infinity ? 'kraliçe modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her pazartesi yenilenir`;
+  return p.limit === Infinity ? 'diva modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her pazartesi yenilenir`;
 }
 
 const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -660,10 +661,10 @@ function Onboarding({ onDone, onCancel, myName }) {
 
   if (step === 1) {
     return (
-      <StepShell step={1} colors={colors} title="hattına bir isim ver ✦" sub="mesela: Susu Talep Hattı, Kızlar Meclisi, Aşk Bakanlığı 🏛️"
+      <StepShell step={1} colors={colors} title="hattına bir isim ver ✦" sub="mesela: Diva Talep Hattı, Kızlar Meclisi, Aşk Bakanlığı 🏛️"
         onBack={onCancel} onNext={() => setStep(2)} nextTitle="devam →" canNext>
         <TextInput
-          value={name} onChangeText={setName} placeholder="Susu Talep Hattı" placeholderTextColor="#B79BCB"
+          value={name} onChangeText={setName} placeholder="Diva Talep Hattı" placeholderTextColor="#B79BCB"
           style={styles.input} maxLength={32} returnKeyType="next" onSubmitEditing={() => setStep(2)}
         />
         <Label style={{ marginTop: 22 }}>hattının emojisi</Label>
@@ -678,7 +679,7 @@ function Onboarding({ onDone, onCancel, myName }) {
           <Text style={{ fontSize: 36 }}>{emoji}</Text>
           <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={styles.kicker}>önizleme</Text>
-            <Text style={styles.previewName} numberOfLines={2}>{name.trim() || 'Susu Talep Hattı'}</Text>
+            <Text style={styles.previewName} numberOfLines={2}>{name.trim() || 'Diva Talep Hattı'}</Text>
           </View>
         </Glass>
       </StepShell>
@@ -731,6 +732,90 @@ function Onboarding({ onDone, onCancel, myName }) {
         </Text>
       </Glass>
     </StepShell>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tanıtım turu: ekrandaki öğeleri sırayla vurgular, ne işe yaradığını anlatır
+// ─────────────────────────────────────────────────────────────
+const TOUR_KEY = 'talepp:tour';
+const readTours = async () => {
+  try {
+    return JSON.parse(await AsyncStorage.getItem(TOUR_KEY)) || {};
+  } catch (e) {
+    return {};
+  }
+};
+const markTour = async k => {
+  const seen = await readTours();
+  AsyncStorage.setItem(TOUR_KEY, JSON.stringify({ ...seen, [k]: true })).catch(() => {});
+};
+
+// Tur ekran başına bir kez gösterilir. ready false iken beklenir; değişince yeniden bakılır.
+function useTour(k, ready) {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (ready === false) return undefined;
+    let alive = true;
+    const t = setTimeout(() => readTours().then(seen => { if (alive && !seen[k]) setOn(true); }), 700);
+    return () => { alive = false; clearTimeout(t); };
+  }, [ready]);
+  return [on, () => { setOn(false); markTour(k); }];
+}
+
+const TOUR_PAD = 6;
+const TOUR_CARD = 250; // açıklama kartının yaklaşık yüksekliği
+
+// steps: [{ ref, title, text }]; ekranda olmayan öğe atlanır
+function Tour({ steps, onFinish }) {
+  const [i, setI] = useState(0);
+  const [rect, setRect] = useState(null);
+  const { width: W, height: H } = Dimensions.get('window');
+  const step = steps[i];
+  const last = i === steps.length - 1;
+
+  useEffect(() => {
+    let alive = true;
+    setRect(null);
+    const node = step && step.ref.current;
+    if (!node) {
+      if (last) onFinish();
+      else setI(n => n + 1);
+      return undefined;
+    }
+    node.measureInWindow((x, y, w, h) => { if (alive) setRect({ x, y, w, h }); });
+    return () => { alive = false; };
+  }, [i]);
+
+  const next = () => { tap(); if (last) onFinish(); else setI(i + 1); };
+
+  if (!step) return null;
+  const hole = rect && { x: rect.x - TOUR_PAD, y: rect.y - TOUR_PAD, w: rect.w + TOUR_PAD * 2, h: rect.h + TOUR_PAD * 2 };
+  const below = hole && hole.y + hole.h + TOUR_CARD < H;
+
+  return (
+    <Modal transparent animationType="fade" statusBarTranslucent onRequestClose={onFinish}>
+      {hole ? (
+        <>
+          <View style={[styles.tourShade, { left: 0, top: 0, width: W, height: Math.max(0, hole.y) }]} />
+          <View style={[styles.tourShade, { left: 0, top: hole.y + hole.h, width: W, bottom: 0 }]} />
+          <View style={[styles.tourShade, { left: 0, top: hole.y, width: Math.max(0, hole.x), height: hole.h }]} />
+          <View style={[styles.tourShade, { left: hole.x + hole.w, top: hole.y, right: 0, height: hole.h }]} />
+          <View pointerEvents="none" style={[styles.tourHole, { left: hole.x, top: hole.y, width: hole.w, height: hole.h }]} />
+          <View style={[styles.tourCard, below ? { top: hole.y + hole.h + 14 } : { bottom: H - hole.y + 14 }]}>
+            <Text style={styles.tourCount}>{i + 1} / {steps.length}  ✦  nasıl kullanılır?</Text>
+            <Text style={styles.tourTitle}>{step.title}</Text>
+            <Text style={styles.tourText}>{step.text}</Text>
+            <View style={styles.tourButtons}>
+              {last ? <View /> : (
+                <Pressable onPress={onFinish} hitSlop={10}><Text style={styles.tourSkip}>geç</Text></Pressable>
+              )}
+              <ChromeButton small hot title={last ? 'başlayalım 💅' : 'ileri ›'} onPress={next} />
+            </View>
+          </View>
+        </>
+      ) : <View style={[styles.tourShade, { left: 0, top: 0, right: 0, bottom: 0 }]} />}
+    </Modal>
   );
 }
 
@@ -915,7 +1000,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
 
       <Label style={{ marginTop: 16 }}>nerede?</Label>
       <TextInput value={place} onChangeText={setPlace} placeholder="📍 Moda sahil, Kadıköy" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
-      <Text style={styles.hint}>gün, saat ve konum isteğe bağlı ✦</Text>
+      <Text style={styles.hint}>gün, saat ve konum isteğe bağlı ✦{'\n'}günü seçersen, onaylanınca telefon takvimine otomatik eklenir 📅</Text>
 
       <Label style={{ marginTop: 16 }}>detaylar (ikna et bakalım)</Label>
       <TextInput
@@ -1162,8 +1247,8 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
         <HoloText style={styles.payTitle}>TalApp+</HoloText>
         <Text style={styles.paySub}>
           {{
-            free: 'bu haftanın 2 ücretsiz talebi bitti 😩\npazartesiyi bekleme, kraliçeler beklemez.',
-            limit: 'bu haftaki 10 talebin doldu 😩\nsınırsıza geç, kraliçeler beklemez.',
+            free: 'bu haftanın 2 ücretsiz talebi bitti 😩\npazartesiyi bekleme, divalar beklemez.',
+            limit: 'bu haftaki 10 talebin doldu 😩\nsınırsıza geç, divalar beklemez.',
           }[reason] || 'daha çok talep, daha çok drama ✦'}
         </Text>
         <Text style={styles.sheetSub}>abonelik tüm hatlarında geçerli ✦</Text>
@@ -1306,7 +1391,7 @@ function JoinSheet({ visible, onClose, onJoin, myName }) {
       </View>
       <Label style={{ marginTop: 22 }}>davet kodu</Label>
       <TextInput
-        value={code} onChangeText={t => setCode(t.toUpperCase())} placeholder="SUSU-7K2QX" placeholderTextColor="#B79BCB"
+        value={code} onChangeText={t => setCode(t.toUpperCase())} placeholder="DIVA-7K2QX" placeholderTextColor="#B79BCB"
         style={[styles.input, styles.codeInput]} autoCapitalize="characters" autoCorrect={false} maxLength={12}
       />
       <Label style={{ marginTop: 16 }}>hatta adın ne olsun?</Label>
@@ -1379,10 +1464,15 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
     api.updateRequest(r.id, { status, history }).catch(failed);
   };
 
+  // Onaylanan talep telefon takvimine girer; sonuç kutlama mesajına eklenir
+  const toCalendar = r => addToCalendar({ ...r, status: 'approved' }, { line: data.line.name, cat: data.line.cats.find(c => c.id === r.catId) })
+    .then(res => (res === 'added' ? ' · 📅 takvimine eklendi' : ''));
+
   const act = {
     approve: r => {
       change(r, 'approved', 'approved');
-      closeThen(() => celebrate(`💖 onaylandı! ${nameOf(r.from)} uçuyor şu an`));
+      const cal = toCalendar(r);
+      closeThen(async () => celebrate(`💖 onaylandı! ${nameOf(r.from)} uçuyor şu an${await cal}`));
     },
     reject: (r, reason) => {
       change(r, 'rejected', 'rejected', reason);
@@ -1394,7 +1484,8 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
     },
     accept: r => {
       change(r, 'accepted', 'approved');
-      closeThen(() => celebrate('✅ anlaştınız! talep onaylandı'));
+      const cal = toCalendar(r);
+      closeThen(async () => celebrate(`✅ anlaştınız! talep onaylandı${await cal}`));
     },
     appeal: (r, text) => {
       change(r, 'appeal', 'appeal', text);
