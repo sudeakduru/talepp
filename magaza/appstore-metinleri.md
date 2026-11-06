@@ -54,11 +54,12 @@ ONAY, RET, PAZARLIK, İTİRAZ
 • "Olur ama…" mı diyorsun? Karşı teklif ver, pazarlık başlasın 🤝
 • Reddedilen talebe bir kez itiraz hakkın var ⚖️
 • Her adımda anında bildirim gelir
+• Onaylanan talep, gün ve saatiyle telefon takvimine otomatik eklenir 📅
 
 ÜCRETSİZ BAŞLA
 • Haftada 2 talep ücretsiz, her pazartesi yenilenir
 • TalApp+: haftada 10 talep
-• TalApp Sınırsız: sınırsız talep 👑
+• TalApp Sınırsız: sınırsız talep, diva modu 👑
 
 GÜVENLİ
 • Talepler yalnızca hattaki kişilere görünür
@@ -121,10 +122,10 @@ Toplanmayanlar: konum (konum sadece kullanıcının yazdığı metin), kişiler,
 TalApp lets couples and friends send each other "requests" (e.g. "movie tonight") inside a private shared space called a "line" (hat). The other members can approve, reject or counter-offer (pazarlık); a rejected request can be appealed once (itiraz). The UI is in Turkish.
 
 DEMO ACCOUNT
-The demo account already belongs to a line ("Demo Hat") with a second demo member and some sample requests, so every feature can be tried without inviting anyone.
+The demo account already belongs to a line ("Diva Talep Hattı") with a second demo member and some sample requests, so every feature can be tried without inviting anyone.
 
 HOW TO TEST
-1. Sign in with the demo account. The first screen is "hatlarım" (my lines). Tap "Demo Hat".
+1. Sign in with the demo account. A short guided tour explains each button. The first screen is "hatlarım" (my lines). Tap "Diva Talep Hattı".
 2. Tap a request to open it. Approve (onayla), reject (reddet) or counter-offer (pazarlık).
 3. Tap the main button to create a new request: title, date (calendar), time, place, optional photo.
 4. "＋ davet et" shows the invite code. A second user joins with "davet kodum var · kodla katıl" on the hatlarım screen.
@@ -139,6 +140,7 @@ ACCOUNT DELETION
 hatlarım → 👤 (top right) → "hesabımı sil" (Delete my account).
 
 Push notifications are sent when a request is created or its status changes.
+CALENDAR: when a request that has a date is approved, the app asks for calendar access and adds it to the device calendar (used only to add that event; existing calendar events are never read or uploaded).
 ```
 
 ## Ekran görüntüleri
