@@ -55,6 +55,7 @@ ONAY, RET, PAZARLIK, İTİRAZ
 • Reddedilen talebe bir kez itiraz hakkın var ⚖️
 • Her adımda anında bildirim gelir
 • Onaylanan talep, gün ve saatiyle telefon takvimine otomatik eklenir 📅
+• Tarihi yaklaşınca 1 gün ve 12 saat önce hatırlatma gelir 🔔
 
 ÜCRETSİZ BAŞLA
 • Haftada 2 talep ücretsiz, her pazartesi yenilenir
