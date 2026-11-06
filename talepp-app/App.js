@@ -17,7 +17,7 @@ import * as api from './api';
 import { registerPush, clearPush, onPushOpen } from './push';
 import { purchasesEnabled, initPurchases, onPlanChange, getPackages, buy, restore, logOutPurchases } from './purchases';
 import { addToCalendar, syncCalendar } from './calendar';
-import { scheduleReminders, syncReminders, clearReminders } from './reminders';
+import { scheduleReminders, syncReminders, clearReminders, testReminder } from './reminders';
 import { APP_STORE_URL, TERMS_URL, PRIVACY_URL, SUPPORT_EMAIL } from './config';
 
 // ─────────────────────────────────────────────────────────────
@@ -2037,6 +2037,11 @@ export default function App() {
   const account = () => Alert.alert(userName || 'hesabım', user.email, [
     { text: store.avatar ? 'profil fotoğrafını değiştir 📸' : 'profil fotoğrafı ekle 📸', onPress: pickAvatar },
     ...(store.avatar ? [{ text: 'fotoğrafı kaldır', onPress: removeAvatar }] : []),
+    // App Store sürümünde görünmez
+    ...(__DEV__ ? [{
+      text: '🔔 test bildirimi (10 sn)',
+      onPress: () => testReminder().then(ok => Alert.alert(ok ? '10 saniye bekle 🔔' : 'bildirim izni kapalı', ok ? 'istersen uygulamayı arka plana al.' : 'Ayarlar → Expo Go → Bildirimler')),
+    }] : []),
     { text: 'nasıl kullanılır? 🧭', onPress: () => AsyncStorage.removeItem(TOUR_KEY).catch(() => {}).then(() => setTourRun(n => n + 1)) },
     { text: 'destek / iletişim ✉️', onPress: () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => Alert.alert('destek', SUPPORT_EMAIL)) },
     { text: 'gizlilik politikası', onPress: () => Linking.openURL(PRIVACY_URL).catch(() => {}) },

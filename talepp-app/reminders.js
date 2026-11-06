@@ -76,6 +76,18 @@ export async function syncReminders(lines) {
   if (gone.length) await save();
 }
 
+// Geliştirmede deneme: 10 saniye sonra örnek hatırlatma
+export async function testReminder() {
+  let { granted } = await Notifications.getPermissionsAsync();
+  if (!granted) ({ granted } = await Notifications.requestPermissionsAsync());
+  if (!granted) return false;
+  await Notifications.scheduleNotificationAsync({
+    content: { title: 'yarın: 🍣 sushi date 📅', body: '🕗 20:30  ·  📍 Moda sahil  ·  💌 Diva Talep Hattı' },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 10 },
+  });
+  return true;
+}
+
 // Çıkışta: bu telefonda başka hesap açılırsa eski hesabın hatırlatmaları gelmesin
 export async function clearReminders() {
   await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
