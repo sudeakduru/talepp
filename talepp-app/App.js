@@ -1428,6 +1428,12 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
   const [toastMsg, setToastMsg] = useState(null);
   const [burst, setBurst] = useState(0);
   const toastA = useRef(new Animated.Value(0)).current;
+  const membersRef = useRef(null);
+  const tabsRef = useRef(null);
+  const fabRef = useRef(null);
+  const navRef = useRef(null);
+  // Davet ekranı açıksa kapanınca başlar
+  const [touring, endTour] = useTour('home', !sheet);
 
   const toast = msg => {
     setToastMsg(msg);
@@ -1620,15 +1626,18 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
             <Text style={styles.kicker}>talep hattı ✦</Text>
             <Text style={styles.lineName} numberOfLines={2}>{data.line.name}</Text>
           </View>
-          <Pressable onPress={() => { tap(); onHome(); }} hitSlop={10} style={[styles.gear, { marginRight: 8 }]}>
-            <Text style={{ fontSize: 18 }}>🏠</Text>
-          </Pressable>
-          <Pressable onPress={() => { tap(); settings(); }} hitSlop={10} style={styles.gear}>
-            <Text style={{ fontSize: 20, color: C.ink }}>⚙︎</Text>
-          </Pressable>
+          <View ref={navRef} collapsable={false} style={{ flexDirection: 'row' }}>
+            <Pressable onPress={() => { tap(); onHome(); }} hitSlop={10} style={[styles.gear, { marginRight: 8 }]}>
+              <Text style={{ fontSize: 18 }}>🏠</Text>
+            </Pressable>
+            <Pressable onPress={() => { tap(); settings(); }} hitSlop={10} style={styles.gear}>
+              <Text style={{ fontSize: 20, color: C.ink }}>⚙︎</Text>
+            </Pressable>
+          </View>
         </View>
 
         <Text style={[styles.label, { marginTop: 16 }]}>bu hatta kimler var 🫶</Text>
+        <View ref={membersRef} collapsable={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
           {data.members.map((m, i) => {
             const me = m.id === viewer.id;
@@ -1643,6 +1652,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
             <Text style={[styles.viewerName, { color: C.hot }]}>＋ davet et</Text>
           </Pressable>
         </ScrollView>
+        </View>
 
         {!others.length ? (
           <Pressable onPress={() => { tap(); setSheet('invite'); }}>
@@ -1675,7 +1685,7 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
           ) : null}
         </Glass>
 
-        <View style={styles.tabs}>
+        <View ref={tabsRef} collapsable={false} style={styles.tabs}>
           {[['in', 'gelen'], ['out', 'giden'], ['all', 'tüm hat']].map(([k, t]) => (
             <Pressable key={k} onPress={() => { tap(); setTab(k); }} style={[styles.tab, tab === k && styles.tabOn]}>
               <Text style={[styles.tabTxt, tab === k && styles.tabTxtOn]}>{t}</Text>
@@ -1701,7 +1711,9 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
       </ScrollView>
 
       <View style={[styles.fabWrap, { bottom: insets.bottom + 14 }]} pointerEvents="box-none">
-        <ChromeButton hot big title={others.length ? '✦ TALEP AT ✦' : '💌 KİŞİLERİ DAVET ET'} onPress={onFab} />
+        <View ref={fabRef} collapsable={false}>
+          <ChromeButton hot big title={others.length ? '✦ TALEP AT ✦' : '💌 KİŞİLERİ DAVET ET'} onPress={onFab} />
+        </View>
       </View>
 
       {toastMsg ? (
@@ -1725,6 +1737,29 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
         visible={sheet === 'invite'} onClose={() => { setSheet(null); setFreshInvite(false); }}
         line={data.line} members={data.members.length} colors={colors} fresh={freshInvite}
       />
+      {touring ? (
+        <Tour
+          onFinish={endTour}
+          steps={[
+            {
+              ref: membersRef, title: 'hattaki kişiler 🫶',
+              text: 'hattında kimler var burada görürsün. "＋ davet et" ile sevgilini ya da kankalarını çağır, davet kodunu paylaş.',
+            },
+            {
+              ref: tabsRef, title: 'gelen · giden · tüm hat 📬',
+              text: 'sana gelen talepler, senin attıkların ve hattaki her şey. cevap bekleyenler pembe rozetle görünür. bir talebe dokununca onaylar, reddeder ya da pazarlık edersin 🤝',
+            },
+            {
+              ref: fabRef, title: others.length ? 'talep at ✦' : 'önce birini davet et 💌',
+              text: `${others.length ? 'ne istediğini yaz' : 'biri hattına katılınca bu buton "✦ TALEP AT ✦" olur'}; gün, saat, konum ve fotoğraf ekleyebilirsin. talep onaylanınca gün ve saatiyle telefon takvimine otomatik eklenir 📅`,
+            },
+            {
+              ref: navRef, title: 'ana sayfa ve ayarlar',
+              text: '🏠 ile tüm hatlarına dönersin. ⚙︎ ile kişileri davet eder, TalApp+ planlarına bakar ve hattını yönetirsin.',
+            },
+          ]}
+        />
+      ) : null}
     </HoloBg>
   );
 }
@@ -1732,11 +1767,17 @@ function Home({ data, setData, store, setStore, onHome, onPlan, reload, fresh })
 // ─────────────────────────────────────────────────────────────
 // Ana sayfa: tüm hatlar
 // ─────────────────────────────────────────────────────────────
-function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, reload }) {
+function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, reload, tourRun }) {
   const insets = useSafeAreaInsets();
   const { limit, used } = quotaOf(store.plan, myUsedWeek(store));
   const left = Math.max(0, limit - used);
   const [joinOpen, setJoinOpen] = useState(false);
+  const quotaRef = useRef(null);
+  const newRef = useRef(null);
+  const joinRef = useRef(null);
+  const accountRef = useRef(null);
+  // tourRun artınca (hesap → nasıl kullanılır?) tur yeniden gösterilir
+  const [touring, endTour] = useTour('lines', tourRun);
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => { setRefreshing(true); await reload(); setRefreshing(false); };
   const join = async (code, name) => {
@@ -1756,7 +1797,7 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, re
             <Text style={styles.kicker}>{userName ? `selam ${userName} 👋` : 'ana sayfa ✦'}</Text>
             <HoloText style={styles.hubTitle}>hatlarım</HoloText>
           </View>
-          <Pressable onPress={() => { tap(); onAccount(); }} hitSlop={10} style={store.avatar ? null : styles.gear}>
+          <Pressable ref={accountRef} onPress={() => { tap(); onAccount(); }} hitSlop={10} style={store.avatar ? null : styles.gear}>
             {store.avatar
               ? <Avatar name={userName} index={0} size={48} uri={store.avatar} />
               : <Text style={{ fontSize: 18 }}>👤</Text>}
@@ -1768,11 +1809,13 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, re
           </Pressable>
         ) : null}
 
-        <Glass style={{ marginTop: 14 }}>
-          <Text style={styles.label}>bu haftaki talep hakkın</Text>
-          <HoloText style={styles.quotaBig}>{limit === Infinity ? '∞' : `${left}/${limit}`}</HoloText>
-          <Text style={styles.quotaHint}>{quotaHintOf(store.plan, left)}</Text>
-        </Glass>
+        <View ref={quotaRef} collapsable={false} style={{ marginTop: 14 }}>
+          <Glass>
+            <Text style={styles.label}>bu haftaki talep hakkın</Text>
+            <HoloText style={styles.quotaBig}>{limit === Infinity ? '∞' : `${left}/${limit}`}</HoloText>
+            <Text style={styles.quotaHint}>{quotaHintOf(store.plan, left)}</Text>
+          </Glass>
+        </View>
 
         {store.lines.length === 0 ? (
           <Glass style={{ alignItems: 'center', paddingVertical: 34, marginTop: 18 }}>
@@ -1803,11 +1846,38 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, re
       </ScrollView>
 
       <View style={[styles.fabWrap, { bottom: insets.bottom + 14 }]} pointerEvents="box-none">
-        <ChromeButton title="🔑 davet kodum var · kodla katıl" onPress={() => setJoinOpen(true)} style={{ marginBottom: 12 }} />
-        <ChromeButton hot big title="＋ YENİ HAT KUR" onPress={onNew} />
+        <View ref={joinRef} collapsable={false} style={{ marginBottom: 12 }}>
+          <ChromeButton title="🔑 davet kodum var · kodla katıl" onPress={() => setJoinOpen(true)} />
+        </View>
+        <View ref={newRef} collapsable={false}>
+          <ChromeButton hot big title="＋ YENİ HAT KUR" onPress={onNew} />
+        </View>
       </View>
 
       <JoinSheet visible={joinOpen} onClose={() => setJoinOpen(false)} onJoin={join} myName={userName} />
+      {touring ? (
+        <Tour
+          onFinish={endTour}
+          steps={[
+            {
+              ref: quotaRef, title: 'haftalık talep hakkın 🎁',
+              text: `ücretsiz planda haftada ${PLANS[0].limit} talep atabilirsin. hak bütün hatlarında ortak ve her pazartesi yenilenir.`,
+            },
+            {
+              ref: newRef, title: 'kendi hattını kur ✦',
+              text: 'sevgilin, kankaların ya da ev arkadaşların için bir talep hattı aç. mesela "Diva Talep Hattı" 💅 istediğin kadar hat kurabilirsin.',
+            },
+            {
+              ref: joinRef, title: 'davet kodun mu var? 🔑',
+              text: 'biri seni kendi hattına çağırdıysa kodu buraya yaz, hemen katıl.',
+            },
+            {
+              ref: accountRef, title: 'hesabın 👤',
+              text: 'profil fotoğrafı, destek, çıkış ve hesap ayarların burada. bu rehberi de buradan tekrar izleyebilirsin.',
+            },
+          ]}
+        />
+      ) : null}
     </HoloBg>
   );
 }
@@ -1822,6 +1892,7 @@ export default function App() {
   const [store, setStore] = useState(null);
   const [adding, setAdding] = useState(false);
   const [freshId, setFreshId] = useState(null); // yeni kurulan hat davet ekranıyla açılır
+  const [tourRun, setTourRun] = useState(0);
   const [session, setSession] = useState(undefined); // undefined: henüz bilinmiyor
   const userId = session ? session.user.id : null;
   const userRef = useRef(null);
@@ -1861,6 +1932,14 @@ export default function App() {
         ...s, userId: id, lines: res.lines, avatar: res.avatar,
         activeId: res.lines.some(l => l.id === s.activeId) ? s.activeId : null,
       }));
+      // başka telefonda onaylanan taleplerim takvime girer; kullanıcıya söylenir
+      syncCalendar(res.lines).then(added => {
+        if (!added.length) return;
+        const r = added[0];
+        Alert.alert('takvimine ekledim 📅', added.length === 1
+          ? `"${r.title}" onaylandı 💖\n${dayLabel(r.date)}${r.time ? ` · ${r.time}` : ''} olarak telefon takvimine eklendi.`
+          : `${added.length} onaylı talebin telefon takvimine eklendi 💖`);
+      });
     } catch (e) {
       // çevrimdışı
     }
@@ -1950,6 +2029,7 @@ export default function App() {
   const account = () => Alert.alert(userName || 'hesabım', user.email, [
     { text: store.avatar ? 'profil fotoğrafını değiştir 📸' : 'profil fotoğrafı ekle 📸', onPress: pickAvatar },
     ...(store.avatar ? [{ text: 'fotoğrafı kaldır', onPress: removeAvatar }] : []),
+    { text: 'nasıl kullanılır? 🧭', onPress: () => AsyncStorage.removeItem(TOUR_KEY).catch(() => {}).then(() => setTourRun(n => n + 1)) },
     { text: 'destek / iletişim ✉️', onPress: () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => Alert.alert('destek', SUPPORT_EMAIL)) },
     { text: 'gizlilik politikası', onPress: () => Linking.openURL(PRIVACY_URL).catch(() => {}) },
     { text: 'çıkış yap', onPress: signOut },
@@ -1999,7 +2079,7 @@ export default function App() {
   } else {
     screen = (
       <Lines
-        store={store} userName={userName} reload={reload} onAccount={account} onAvatar={pickAvatar}
+        store={store} userName={userName} reload={reload} onAccount={account} onAvatar={pickAvatar} tourRun={tourRun}
         onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)} onJoin={joinLine}
       />
     );
@@ -2184,6 +2264,18 @@ const styles = StyleSheet.create({
     shadowColor: C.hot, shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8,
   },
   toastTxt: { fontFamily: F.bold, fontSize: 13, color: '#fff', textAlign: 'center' },
+
+  tourShade: { position: 'absolute', backgroundColor: 'rgba(43,15,69,0.62)' },
+  tourHole: { position: 'absolute', borderRadius: 22, borderWidth: 2.5, borderColor: '#fff' },
+  tourCard: {
+    position: 'absolute', left: 18, right: 18, backgroundColor: '#fff', borderRadius: 24, padding: 18,
+    shadowColor: C.hot, shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8,
+  },
+  tourCount: { fontFamily: F.med, fontSize: 11, color: C.hot, letterSpacing: 0.6 },
+  tourTitle: { fontFamily: F.black, fontSize: 18, color: C.ink, marginTop: 6 },
+  tourText: { fontFamily: F.med, fontSize: 13, color: C.ink, marginTop: 8, lineHeight: 20 },
+  tourButtons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 },
+  tourSkip: { fontFamily: F.med, fontSize: 12, color: C.inkSoft, textDecorationLine: 'underline' },
 
   sheetTop: { alignItems: 'center', paddingTop: 10, height: 50 },
   grabber: { width: 44, height: 5, borderRadius: 3, backgroundColor: 'rgba(43,15,69,0.25)' },
