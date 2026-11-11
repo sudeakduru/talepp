@@ -2068,6 +2068,8 @@ export default function App() {
   const [adding, setAdding] = useState(false);
   const [freshId, setFreshId] = useState(null); // yeni kurulan hat davet ekranıyla açılır
   const [tourRun, setTourRun] = useState(0);
+  const [menu, setMenu] = useState(false); // hesap menüsü
+  const [openReq, setOpenReq] = useState(null); // bildirimden açılacak talep
   const [session, setSession] = useState(undefined); // undefined: henüz bilinmiyor
   const userId = session ? session.user.id : null;
   const userRef = useRef(null);
@@ -2104,7 +2106,7 @@ export default function App() {
       const res = await api.fetchAll(id);
       if (userRef.current !== id) return; // bu arada çıkış yapıldı
       setStore(s => ({
-        ...s, userId: id, lines: res.lines, avatar: res.avatar,
+        ...s, userId: id, lines: res.lines, avatar: res.avatar, name: res.name, tester: res.tester, needsProfile: !res.hasProfile,
         activeId: res.lines.some(l => l.id === s.activeId) ? s.activeId : null,
       }));
       // başka telefonda onaylanan taleplerim takvime girer (kullanıcıya söylenir) ve hatırlatması kurulur
@@ -2112,7 +2114,7 @@ export default function App() {
       syncCalendar(res.lines).then(added => {
         if (!added.length) return;
         const r = added[0];
-        Alert.alert('takvimine ekledim 📅', added.length === 1
+        Alert.alert('Takvimine ekledim 📅', added.length === 1
           ? `"${r.title}" onaylandı 💖\n${dayLabel(r.date)}${r.time ? ` · ${r.time}` : ''} olarak telefon takvimine eklendi.`
           : `${added.length} onaylı talebin telefon takvimine eklendi 💖`);
       });
@@ -2139,9 +2141,12 @@ export default function App() {
     let timer = null;
     const offLive = api.subscribeChanges(() => { clearTimeout(timer); timer = setTimeout(reload, 400); });
     const appSub = AppState.addEventListener('change', st => { if (st === 'active') reload(); });
-    const offPush = onPushOpen(lineId => {
+    const offPush = onPushOpen((lineId, reqId) => {
       setAdding(false);
-      reload().then(() => setStore(s => ({ ...s, activeId: lineId })));
+      reload().then(() => {
+        setOpenReq(reqId);
+        setStore(s => ({ ...s, activeId: lineId }));
+      });
     });
     return () => { offPlan(); offLive(); appSub.remove(); offPush(); clearTimeout(timer); };
   }, [userId, loaded]);
@@ -2158,8 +2163,10 @@ export default function App() {
   }
 
   const user = session.user;
-  const userName = userNameOf(user);
+  const userName = store.name || userNameOf(user);
   const active = store.lines.find(l => l.id === store.activeId);
+  // Test kullanıcısı abonelik olmadan sınırsız
+  const view = store.tester ? { ...store, plan: 'inf' } : store;
 
   const signOut = async () => {
     await clearPush();
@@ -2169,12 +2176,12 @@ export default function App() {
     await supabase.auth.signOut().catch(() => {});
   };
   const deleteAccount = () => Alert.alert(
-    'hesabın silinsin mi? 🥺',
-    'hesabın, profilin ve kurduğun hatlar kalıcı olarak silinir. aynı hesapla Yumi kullanıyorsan oradaki hesabın da silinir.',
+    'Hesabın silinsin mi? 🥺',
+    'Hesabın, profilin ve kurduğun hatlar kalıcı olarak silinir. Aynı hesapla Yumi kullanıyorsan oradaki hesabın da silinir.',
     [
-      { text: 'vazgeç', style: 'cancel' },
+      { text: 'Vazgeç', style: 'cancel' },
       {
-        text: 'hesabımı sil', style: 'destructive',
+        text: 'Hesabımı sil', style: 'destructive',
         onPress: async () => {
           await api.removeAvatarFiles(user.id);
           const { error } = await supabase.rpc('delete_user');
@@ -2204,21 +2211,48 @@ export default function App() {
     .then(() => { setStore(s => ({ ...s, avatar: null })); reload(); })
     .catch(oops);
 
-  const account = () => Alert.alert(userName || 'hesabım', user.email, [
-    { text: store.avatar ? 'profil fotoğrafını değiştir 📸' : 'profil fotoğrafı ekle 📸', onPress: pickAvatar },
-    ...(store.avatar ? [{ text: 'fotoğrafı kaldır', onPress: removeAvatar }] : []),
+  // Hesap menüsü bir sayfa; açtığı şey (galeri, uyarı) sayfa kapanınca açılır
+  const closeMenuThen = fn => { setMenu(false); setTimeout(fn, 450); };
+  const accountItems = [
+    { e: '📸', t: store.avatar ? 'Profil fotoğrafını değiştir' : 'Profil fotoğrafı ekle', onPress: () => closeMenuThen(pickAvatar) },
+    ...(store.avatar ? [{ e: '🫥', t: 'Fotoğrafı kaldır', onPress: () => closeMenuThen(removeAvatar) }] : []),
+    { e: '🧭', t: 'Nasıl kullanılır?', onPress: () => closeMenuThen(() => AsyncStorage.removeItem(TOUR_KEY).catch(() => {}).then(() => setTourRun(n => n + 1))) },
     // App Store sürümünde görünmez
     ...(__DEV__ ? [{
-      text: '🔔 test bildirimi (10 sn)',
-      onPress: () => testReminder().then(ok => Alert.alert(ok ? '10 saniye bekle 🔔' : 'bildirim izni kapalı', ok ? 'istersen uygulamayı arka plana al.' : 'Ayarlar → Expo Go → Bildirimler')),
+      e: '🔔', t: 'Test bildirimi (10 sn)',
+      onPress: () => closeMenuThen(() => testReminder().then(ok => Alert.alert(
+        ok ? '10 saniye bekle 🔔' : 'Bildirim izni kapalı',
+        ok ? 'İstersen uygulamayı arka plana al.' : 'Ayarlar → Expo Go → Bildirimler',
+      ))),
     }] : []),
-    { text: 'nasıl kullanılır? 🧭', onPress: () => AsyncStorage.removeItem(TOUR_KEY).catch(() => {}).then(() => setTourRun(n => n + 1)) },
-    { text: 'destek / iletişim ✉️', onPress: () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => Alert.alert('destek', SUPPORT_EMAIL)) },
-    { text: 'gizlilik politikası', onPress: () => Linking.openURL(PRIVACY_URL).catch(() => {}) },
-    { text: 'çıkış yap', onPress: signOut },
-    { text: 'hesabımı sil', style: 'destructive', onPress: deleteAccount },
-    { text: 'kapat', style: 'cancel' },
-  ]);
+    { e: '✉️', t: 'Destek / iletişim', onPress: () => Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => Alert.alert('Destek', SUPPORT_EMAIL)) },
+    { e: '🔒', t: 'Gizlilik politikası', onPress: () => Linking.openURL(PRIVACY_URL).catch(() => {}) },
+    { e: '👋', t: 'Çıkış yap', danger: true, onPress: () => closeMenuThen(signOut) },
+    { e: '🗑️', t: 'Hesabımı sil', danger: true, onPress: () => closeMenuThen(deleteAccount) },
+  ];
+  const accountMenu = (
+    <MenuSheet
+      visible={menu} onClose={() => setMenu(false)} colors={THEMES.bubblegum.colors} items={accountItems}
+      head={(
+        <>
+          <Avatar name={userName} index={0} size={78} uri={store.avatar} />
+          <HoloText style={styles.sheetTitle}>{userName || 'Hesabım'}</HoloText>
+          <Text style={styles.sheetSub}>{user.email}</Text>
+          <Sticker
+            text={store.tester ? '🧪 TEST · SINIRSIZ' : `👑 ${planOf(view.plan).short}`}
+            bg={C.butter} rotate="-3deg" style={{ alignSelf: 'center', marginTop: 10 }}
+          />
+        </>
+      )}
+    />
+  );
+
+  const finishProfile = async (name, age) => {
+    await api.ensureProfile(name, age);
+    AsyncStorage.removeItem(APPLE_NAME_KEY).catch(() => {});
+    setStore(s => ({ ...s, name, needsProfile: false }));
+    reload();
+  };
 
   // Hata fırlatırsa Onboarding uyarı gösterir
   const addLine = async line => {
@@ -2249,21 +2283,25 @@ export default function App() {
   });
 
   let screen;
-  if (adding) {
+  if (store.needsProfile) {
+    screen = <ProfileSetup initialName={userName} onDone={finishProfile} onSignOut={signOut} />;
+  } else if (adding) {
     screen = <Onboarding onDone={addLine} onCancel={() => setAdding(false)} myName={userName || meName(store.lines[0])} />;
   } else if (active) {
     screen = (
       <Home
-        key={active.id} data={active} setData={setLine} store={store} setStore={setStore} reload={reload}
+        key={active.id} data={active} setData={setLine} store={view} reload={reload}
         fresh={freshId === active.id} onPlan={k => setStore(s => ({ ...s, plan: k }))}
         onHome={() => { setFreshId(null); setStore(s => ({ ...s, activeId: null })); }}
+        openReq={openReq} onOpened={() => setOpenReq(null)}
       />
     );
   } else {
     screen = (
       <Lines
-        store={store} userName={userName} reload={reload} onAccount={account} onAvatar={pickAvatar} tourRun={tourRun}
+        store={view} userName={userName} reload={reload} onAccount={() => setMenu(true)} onAvatar={pickAvatar} tourRun={tourRun}
         onOpen={id => setStore(s => ({ ...s, activeId: id }))} onNew={() => setAdding(true)} onJoin={joinLine}
+        onPlan={k => setStore(s => ({ ...s, plan: k }))}
       />
     );
   }
@@ -2272,6 +2310,7 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="dark" />
       {screen}
+      {accountMenu}
     </SafeAreaProvider>
   );
 }
@@ -2285,6 +2324,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.35)',
   },
   holoShadow: { position: 'absolute', left: 2, top: 3, color: '#fff' },
+  // iPad'de içerik bu genişlikte ortalanır
+  frame: { flex: 1, width: '100%', maxWidth: 680, alignSelf: 'center' },
+
+  appleBtn: { width: '100%', height: 54, marginTop: 14 },
+  orTxt: { fontFamily: F.med, fontSize: 12, color: C.inkSoft, textAlign: 'center', marginVertical: 12 },
+  inputBad: { borderColor: '#FF6B9A' },
+
+  menuBox: { marginTop: 18, paddingVertical: 4, paddingHorizontal: 14 },
+  menuRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
+  menuIcon: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center',
+    marginRight: 12, borderWidth: 1.5, borderColor: '#fff',
+  },
+  menuIconDanger: { backgroundColor: '#FFE0EA' },
+  menuTxt: { flex: 1, fontFamily: F.bold, fontSize: 14, color: C.ink },
+  menuTxtDanger: { color: '#D61F5B' },
 
   logo: { fontFamily: F.black, fontSize: 56, letterSpacing: -2, marginTop: 18 },
   tagline: { fontFamily: F.med, fontSize: 15, color: C.ink, textAlign: 'center', lineHeight: 23, marginTop: 10 },
