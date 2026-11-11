@@ -487,7 +487,7 @@ function AuthScreen() {
             <Sticker text={login ? '✦ tekrar hoş geldin ✦' : '✦ yeni nesil talep hattı ✦'} rotate="-3deg" />
             <HoloText style={styles.logo}>TalApp</HoloText>
             <Text style={styles.tagline}>{login ? 'hesabına giriş yap 💅' : 'önce seni tanıyalım 🫶'}</Text>
-          </View>
+          </View
 
           <View style={{ marginTop: 22 }}>
               {!login ? (
