@@ -424,10 +424,45 @@ function Sheet({ visible, onClose, colors, children }) {
 // Kayıt / giriş (Supabase: e-posta + şifre; kayıtta ad ve yaş)
 // ─────────────────────────────────────────────────────────────
 const AUTH_ERRORS = {
-  'Invalid login credentials': 'e-posta ya da şifre hatalı 🙈',
-  'User already registered': 'bu e-posta zaten kayıtlı ✦ "giriş yap"a geç',
-  'Email not confirmed': 'e-postanı henüz onaylamadın 📩 gelen kutuna bak',
+  'Invalid login credentials': 'E-posta ya da şifre hatalı 🙈',
+  'User already registered': 'Bu e-posta zaten kayıtlı ✦ "Giriş yap"a geç',
+  'Email not confirmed': 'E-postanı henüz onaylamadın 📩 Gelen kutuna bak',
 };
+
+// Apple ile giriş (yalnızca iOS'ta görünür). Apple adı yalnızca ilk girişte verir; profil ekranında hazır doldurulur.
+const APPLE_NAME_KEY = 'talepp:appleName';
+
+// or: üstüne "ya da" yazar (Apple girişi olmayan telefonda o da görünmez)
+function AppleButton({ or }) {
+  const [ok, setOk] = useState(false);
+  useEffect(() => { AppleAuthentication.isAvailableAsync().then(setOk).catch(() => {}); }, []);
+  if (!ok) return null;
+  const go = async () => {
+    try {
+      const cred = await AppleAuthentication.signInAsync({
+        requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
+      });
+      const given = cred.fullName && cred.fullName.givenName;
+      if (given) await AsyncStorage.setItem(APPLE_NAME_KEY, given).catch(() => {});
+      // oturum açılınca App'teki onAuthStateChange ekranı kendisi değiştirir
+      const { error } = await supabase.auth.signInWithIdToken({ provider: 'apple', token: cred.identityToken });
+      if (error) throw error;
+    } catch (e) {
+      if (e && e.code === 'ERR_REQUEST_CANCELED') return;
+      Alert.alert('Apple ile giriş olmadı 😵', 'Biraz sonra tekrar dener misin? Olmazsa e-postayla da kaydolabilirsin.');
+    }
+  };
+  return (
+    <>
+      {or ? <Text style={styles.orTxt}>ya da</Text> : null}
+      <AppleAuthentication.AppleAuthenticationButton
+        buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+        cornerRadius={26} style={[styles.appleBtn, or && { marginTop: 0 }]} onPress={go}
+      />
+    </>
+  );
+}
 
 function AuthScreen() {
   const insets = useSafeAreaInsets();
@@ -437,16 +472,18 @@ function AuthScreen() {
   const [age, setAge] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
   const submit = async () => {
     setMsg('');
     const a = parseInt(age, 10);
-    if (!login && !name.trim()) return setMsg('adını yazar mısın? 🫶');
-    if (!login && !(a >= 13 && a <= 120)) return setMsg('TalApp 13 yaş ve üstü için 💅 yaşını kontrol eder misin?');
-    if (!/\S+@\S+\.\S+/.test(email.trim())) return setMsg('geçerli bir e-posta yaz ✉️');
-    if (password.length < 6) return setMsg('şifre en az 6 karakter olmalı 🔐');
+    if (!login && !name.trim()) return setMsg('Adını yazar mısın? 🫶');
+    if (!login && !(a >= 13 && a <= 120)) return setMsg('TalApp 13 yaş ve üstü için 💅 Yaşını kontrol eder misin?');
+    if (!/\S+@\S+\.\S+/.test(email.trim())) return setMsg('Geçerli bir e-posta yaz ✉️');
+    if (password.length < 6) return setMsg('Şifre en az 6 karakter olmalı 🔐');
+    if (!login && password !== password2) return setMsg('Şifreler aynı değil 🙈 İkisine de aynı şifreyi yaz.');
     Keyboard.dismiss();
     setBusy(true);
     const res = login
@@ -454,26 +491,27 @@ function AuthScreen() {
       // app: 'talepp' → veritabanı profili talepp_profiles'a açar (proje Yumi ile ortak)
       : await supabase.auth.signUp({ email: email.trim(), password, options: { data: { app: 'talepp', name: name.trim(), age: a } } });
     setBusy(false);
-    if (res.error) return setMsg(AUTH_ERRORS[res.error.message] || 'bir şeyler ters gitti 😵 internetini kontrol edip tekrar dener misin?');
+    if (res.error) return setMsg(AUTH_ERRORS[res.error.message] || 'Bir şeyler ters gitti 😵 İnternetini kontrol edip tekrar dener misin?');
     // oturum açıldıysa App'teki onAuthStateChange ekranı kendisi değiştirir
     if (!res.data.session) {
       setMode('login');
-      setMsg('📩 e-postana onay bağlantısı gönderdik. onaylayınca buradan giriş yap.');
+      setMsg('📩 E-postana onay bağlantısı gönderdik. Onaylayınca buradan giriş yap.');
     }
   };
 
-  const go = m => { tap(); setMsg(''); setMode(m); };
+  const go = m => { tap(); setMsg(''); setPassword2(''); setMode(m); };
 
   if (mode === 'welcome') {
     return (
       <Welcome
-        colors={THEMES.bubblegum.colors} title="kaydol ✦" onPress={() => setMode('signup')}
+        colors={THEMES.bubblegum.colors} title="Kaydol ✦" onPress={() => setMode('signup')}
         footer={(
           <>
+            <AppleButton />
             <Pressable onPress={() => go('login')} hitSlop={10}>
-              <Text style={styles.restore}>zaten hesabın var mı? giriş yap</Text>
+              <Text style={styles.restore}>Zaten hesabın var mı? Giriş yap</Text>
             </Pressable>
-            <Text style={styles.gift}>💌 davet kodun mu var? kaydol, sonra "kodla katıl"a bas</Text>
+            <Text style={styles.gift}>💌 Davet kodun mu var? Kaydol, sonra "Kodla katıl"a bas</Text>
           </>
         )}
       />
@@ -489,53 +527,61 @@ function AuthScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Pressable onPress={() => go('welcome')} hitSlop={12} style={{ alignSelf: 'flex-start', marginBottom: 14 }}>
-            <Text style={styles.back}>← geri</Text>
+            <Text style={styles.back}>← Geri</Text>
           </Pressable>
           <View style={{ alignItems: 'center' }}>
-            <Sticker text={login ? '✦ tekrar hoş geldin ✦' : '✦ yeni nesil talep hattı ✦'} rotate="-3deg" />
+            <Sticker text={login ? '✦ Tekrar hoş geldin ✦' : '✦ Yeni nesil talep hattı ✦'} rotate="-3deg" />
             <HoloText style={styles.logo}>TalApp</HoloText>
-            <Text style={styles.tagline}>{login ? 'hesabına giriş yap 💅' : 'önce seni tanıyalım 🫶'}</Text>
-          </View
+            <Text style={styles.tagline}>{login ? 'Hesabına giriş yap 💅' : 'Önce seni tanıyalım 🫶'}</Text>
+          </View>
 
           <View style={{ marginTop: 22 }}>
               {!login ? (
                 <>
-                  <Label>adın</Label>
+                  <Label>Adın</Label>
+                  <TextInput value={name} onChangeText={setName} style={styles.input} maxLength={20} textContentType="givenName" />
+                  <Label style={{ marginTop: 16 }}>Yaşın</Label>
                   <TextInput
-                    value={name} onChangeText={setName} placeholder="Kerime" placeholderTextColor="#B79BCB"
-                    style={styles.input} maxLength={20} textContentType="givenName"
-                  />
-                  <Label style={{ marginTop: 16 }}>yaşın</Label>
-                  <TextInput
-                    value={age} onChangeText={t => setAge(t.replace(/\D/g, ''))} placeholder="22" placeholderTextColor="#B79BCB"
+                    value={age} onChangeText={t => setAge(t.replace(/\D/g, ''))}
                     style={styles.input} maxLength={3} keyboardType="number-pad"
                   />
                 </>
               ) : null}
-              <Label style={{ marginTop: login ? 0 : 16 }}>e-posta</Label>
+              <Label style={{ marginTop: login ? 0 : 16 }}>E-posta</Label>
               <TextInput
-                value={email} onChangeText={setEmail} placeholder="kerime@mail.com" placeholderTextColor="#B79BCB"
+                value={email} onChangeText={setEmail}
                 style={styles.input} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress"
               />
-              <Label style={{ marginTop: 16 }}>şifre</Label>
+              <Label style={{ marginTop: 16 }}>{login ? 'Şifre' : 'Şifre (en az 6 karakter)'}</Label>
               <TextInput
-                value={password} onChangeText={setPassword} placeholder="en az 6 karakter" placeholderTextColor="#B79BCB"
+                value={password} onChangeText={setPassword}
                 style={styles.input} secureTextEntry textContentType={login ? 'password' : 'newPassword'}
               />
+              {!login ? (
+                <>
+                  <Label style={{ marginTop: 16 }}>Şifre tekrar</Label>
+                  <TextInput
+                    value={password2} onChangeText={setPassword2}
+                    style={[styles.input, password2 && password2 !== password && styles.inputBad]}
+                    secureTextEntry textContentType="newPassword"
+                  />
+                </>
+              ) : null}
 
               {msg ? <Glass style={{ marginTop: 16 }}><Text style={styles.info}>{msg}</Text></Glass> : null}
 
               <ChromeButton
                 hot big disabled={busy} style={{ marginTop: 24 }}
-                title={busy ? 'bekle bi sn... ✦' : login ? 'giriş yap ✦' : 'kaydol ✦'}
+                title={busy ? 'Bekle bi sn... ✦' : login ? 'Giriş yap ✦' : 'Kaydol ✦'}
                 onPress={submit}
               />
+              <AppleButton or />
               <Pressable onPress={() => go(login ? 'signup' : 'login')} hitSlop={10}>
-                <Text style={styles.restore}>{login ? 'hesabın yok mu? kaydol' : 'zaten hesabın var mı? giriş yap'}</Text>
+                <Text style={styles.restore}>{login ? 'Hesabın yok mu? Kaydol' : 'Zaten hesabın var mı? Giriş yap'}</Text>
               </Pressable>
               {!login ? (
                 <Text style={styles.fine}>
-                  kaydolarak{' '}
+                  Kaydolarak{' '}
                   <Text style={styles.link} onPress={() => Linking.openURL(TERMS_URL).catch(() => {})}>kullanım koşullarını</Text>
                   {PRIVACY_URL ? (
                     <>
@@ -543,7 +589,7 @@ function AuthScreen() {
                       <Text style={styles.link} onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}>gizlilik politikasını</Text>
                     </>
                   ) : null}
-                  {' '}kabul edersin. uygunsuz içerik ve taciz yasaktır; bildirilen içerikler 24 saat içinde incelenir.
+                  {' '}kabul edersin. Uygunsuz içerik ve taciz yasaktır; bildirilen içerikler 24 saat içinde incelenir.
                 </Text>
               ) : null}
           </View>
