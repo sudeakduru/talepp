@@ -168,7 +168,7 @@ function makeCode(name) {
 const inviteMessage = line => [
   `${line.emoji} "${line.name}" talep hattıma katıl! 💌`,
   `1) TalApp'i indir: ${APP_STORE_URL || 'App Store\'da "TalApp" diye arat'}`,
-  '2) Kaydol, "kodla katıl"a bas',
+  '2) Kaydol, "Kodla katıl"a bas',
   `3) Kodu yaz: ${line.code}`,
 ].join('\n');
 
@@ -198,7 +198,7 @@ const quotaOf = (plan, used) => ({ limit: planOf(plan).limit, used });
 function quotaHintOf(plan, left, tester) {
   if (tester) return '🧪 Test hesabı · sınırsız talep';
   if (plan === 'free') {
-    return left > 0 ? '🎁 Haftada 2 ücretsiz talep · her pazartesi yenilenir' : 'Bu haftanın ücretsiz hakları bitti 💅 pazartesi yenilenir ya da TalApp+';
+    return left > 0 ? '🎁 Haftada 2 ücretsiz talep · her pazartesi yenilenir' : 'Bu haftanın ücretsiz hakları bitti 💅 Pazartesi yenilenir ya da TalApp+';
   }
   const p = planOf(plan);
   return p.limit === Infinity ? 'Diva modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her pazartesi yenilenir`;
@@ -1111,7 +1111,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
               value={newCat} onChangeText={setNewCat} placeholder="Yeni başlık (örn. Boba)" placeholderTextColor="#B79BCB"
               style={[styles.input, { flex: 1, marginLeft: 10 }]} maxLength={24} autoFocus onSubmitEditing={addCat} returnKeyType="done"
             />
-            <ChromeButton title="ekle" onPress={addCat} style={{ marginLeft: 10 }} />
+            <ChromeButton title="Ekle" onPress={addCat} style={{ marginLeft: 10 }} />
           </View>
           <EmojiPick value={newEmoji} onChange={setNewEmoji} />
         </>
@@ -1265,7 +1265,7 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
         <ChromeButton hot title="İtiraz et ⚖️ (1 hak)" onPress={() => { setText(''); setMode('appeal'); }} />
       );
     } else if (isFrom && r.status === 'appeal') {
-      actions = <Text style={styles.info}>İtirazın masada ⚖️ karar bekleniyor...</Text>;
+      actions = <Text style={styles.info}>İtirazın masada ⚖️ Karar bekleniyor...</Text>;
     } else if (!isTo && !isFrom) {
       actions = <Text style={styles.info}>Bu talep sana ait değil ama izlemek serbest 🍿</Text>;
     }
@@ -1293,7 +1293,7 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
             {r.place ? (
               <Pressable onPress={() => Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(r.place)}`).catch(() => {})}>
                 <Text style={[styles.whenTxt, (r.date || r.time) ? { marginTop: 8 } : null]}>
-                  📍 {r.place}  <Text style={styles.mapLink}>haritada aç ↗</Text>
+                  📍 {r.place}  <Text style={styles.mapLink}>Haritada aç ↗</Text>
                 </Text>
               </Pressable>
             ) : null}
@@ -1434,7 +1434,7 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
         App Store hesap ayarlarından istediğin zaman iptal edebilirsin.
       </Text>
       <Text style={styles.fine}>
-        <Text style={styles.link} onPress={() => Linking.openURL(TERMS_URL).catch(() => {})}>kullanım koşulları</Text>
+        <Text style={styles.link} onPress={() => Linking.openURL(TERMS_URL).catch(() => {})}>Kullanım koşulları</Text>
         {PRIVACY_URL ? (
           <>
             {'  ·  '}
@@ -1479,7 +1479,7 @@ function InviteSheet({ visible, onClose, line, members, colors, fresh }) {
             <Text style={styles.code} numberOfLines={1} adjustsFontSizeToFit>{line.code}</Text>
           </View>
           <Pressable onPress={copy} hitSlop={8} style={[styles.copyBtn, copied && { backgroundColor: C.mint }]}>
-            <Text style={styles.copyTxt}>{copied ? 'Kopyalandı ✓' : 'kopyala'}</Text>
+            <Text style={styles.copyTxt}>{copied ? 'Kopyalandı ✓' : 'Kopyala'}</Text>
           </Pressable>
         </LinearGradient>
       </View>
@@ -1515,8 +1515,8 @@ function JoinSheet({ visible, onClose, onJoin, myName }) {
     setBusy(true);
     setMsg('');
     const res = await onJoin(code.trim(), name.trim() || 'Ben');
-    if (res === 'notfound') setMsg('Bu kodla bir hat bulamadık 🤔 harfleri kontrol eder misin?');
-    else if (res === 'error') setMsg('Olmadı 😵 internetini kontrol edip tekrar dener misin?');
+    if (res === 'notfound') setMsg('Bu kodla bir hat bulamadık 🤔 Harfleri kontrol eder misin?');
+    else if (res === 'error') setMsg('Olmadı 😵 İnternetini kontrol edip tekrar dener misin?');
     if (res !== 'ok') setBusy(false);
   };
 
@@ -1665,7 +1665,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
     block: id => Alert.alert(`${nameOf(id)} engellensin mi? 🚫`, 'Sana talep atamaz, talepleri de sana görünmez.', [
       { text: 'Vazgeç', style: 'cancel' },
       {
-        text: 'engelle', style: 'destructive',
+        text: 'Engelle', style: 'destructive',
         onPress: () => api.blockUser(viewer.id, id)
           .then(() => { closeThen(() => toast('🚫 Engellendi')); reload(); })
           .catch(oops),
@@ -1834,7 +1834,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
         </Glass>
 
         <View ref={tabsRef} collapsable={false} style={styles.tabs}>
-          {[['in', 'gelen'], ['out', 'giden'], ['all', 'Tüm hat']].map(([k, t]) => (
+          {[['in', 'Gelen'], ['out', 'Giden'], ['all', 'Tüm hat']].map(([k, t]) => (
             <Pressable key={k} onPress={() => { tap(); setTab(k); }} style={[styles.tab, tab === k && styles.tabOn]}>
               <Text style={[styles.tabTxt, tab === k && styles.tabTxtOn]}>{t}</Text>
               {k === 'in' && inPending > 0 ? <View style={styles.badge}><Text style={styles.badgeTxt}>{inPending}</Text></View> : null}
@@ -1913,7 +1913,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
             },
             {
               ref: navRef, title: 'Ana sayfa ve ayarlar',
-              text: '🏠 ile tüm hatlarına dönersin. ⚙︎ ile kişileri davet eder, TalApp+ planlarına bakar ve hattını yönetirsin.',
+              text: 'Tüm hatlarına 🏠 ile dönersin. Kişileri davet etmek, TalApp+ planlarına bakmak ve hattını yönetmek için ⚙︎ butonuna bas.',
             },
           ]}
         />
@@ -2040,7 +2040,7 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, on
             },
             {
               ref: newRef, title: 'Kendi hattını kur ✦',
-              text: 'Sevgilin, kankaların ya da ev arkadaşların için bir talep hattı aç. Mesela "Diva Talep Hattı" 💅 istediğin kadar hat kurabilirsin.',
+              text: 'Sevgilin, kankaların ya da ev arkadaşların için bir talep hattı aç. Mesela "Diva Talep Hattı" 💅 İstediğin kadar hat kurabilirsin.',
             },
             {
               ref: joinRef, title: 'Kodla katıl 🔑',
