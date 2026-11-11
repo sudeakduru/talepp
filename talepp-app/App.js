@@ -65,25 +65,25 @@ const PRESET_CATS = [
 ];
 
 const URGENCY = [
-  { k: 'chill', t: 'chill 🧊' },
-  { k: 'onemli', t: 'önemli ✨' },
+  { k: 'chill', t: 'Chill 🧊' },
+  { k: 'onemli', t: 'Önemli ✨' },
   { k: 'acil', t: 'ACİL 🚨' },
 ];
 
 const REJECT_REASONS = [
-  'bugün değil bebeğim 💅', 'bütçe onaylanmadı 💸', 'önce bulaşıklar 🧽',
-  'bunu dün de istedin 👀', 'sistem şu an kapalı 🔌', 'sevgimle reddediyorum 💔',
+  'Bugün değil bebeğim 💅', 'Bütçe onaylanmadı 💸', 'Önce bulaşıklar 🧽',
+  'Bunu dün de istedin 👀', 'Sistem şu an kapalı 🔌', 'Sevgimle reddediyorum 💔',
 ];
 
 // Haklar haftalık, tüm hatlarda ortak ve her pazartesi yenilenir.
 // Ücretli planlar haftalık ya da (indirimli) aylık faturalanır; App Store'dan fiyat gelirse o gösterilir.
 const PLANS = [
-  { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: 'haftada 2 talep', limit: 2 },
-  { k: 'p10', t: 'TalApp+', short: 'PLUS', desc: 'haftada 10 talep', price: { week: '₺39,99', month: '₺99,99' }, limit: 10, badge: 'en popüler 🔥' },
-  { k: 'inf', t: 'TalApp Sınırsız', short: 'SINIRSIZ', desc: 'sınırsız talep', price: { week: '₺69,99', month: '₺179,99' }, limit: Infinity, badge: 'diva modu 👑' },
+  { k: 'free', t: 'Ücretsiz', short: 'ÜCRETSİZ', desc: 'Haftada 2 talep', limit: 2 },
+  { k: 'p10', t: 'TalApp+', short: 'PLUS', desc: 'Haftada 10 talep', price: { week: '₺39,99', month: '₺99,99' }, limit: 10, badge: 'En popüler 🔥' },
+  { k: 'inf', t: 'TalApp Sınırsız', short: 'SINIRSIZ', desc: 'Sınırsız talep', price: { week: '₺69,99', month: '₺179,99' }, limit: Infinity, badge: 'Diva modu 👑' },
 ];
 const PAID = PLANS.filter(p => p.k !== 'free');
-const PERIODS = [{ k: 'week', t: 'haftalık', per: '/ hafta' }, { k: 'month', t: 'aylık · indirimli', per: '/ ay' }];
+const PERIODS = [{ k: 'week', t: 'Haftalık', per: '/ hafta' }, { k: 'month', t: 'Aylık · indirimli', per: '/ ay' }];
 
 const STATUS = {
   pending: { t: 'BEKLEMEDE', e: '⏳', bg: '#FFF3A3' },
@@ -129,9 +129,9 @@ const MONTH_LONG = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Tem
 function dayLabel(k) {
   const [y, m, d] = k.split('-').map(Number);
   const t = new Date();
-  if (k === dayKey(t)) return 'bugün';
+  if (k === dayKey(t)) return 'Bugün';
   t.setDate(t.getDate() + 1);
-  if (k === dayKey(t)) return 'yarın';
+  if (k === dayKey(t)) return 'Yarın';
   const year = y !== new Date().getFullYear() ? ` ${y}` : '';
   return `${d} ${MONTH_SHORT[m - 1]}${year} ${DAY_SHORT[new Date(y, m - 1, d).getDay()]}`;
 }
@@ -172,7 +172,7 @@ const inviteMessage = line => [
   `3) Kodu yaz: ${line.code}`,
 ].join('\n');
 
-const oops = () => Alert.alert('olmadı 😵', 'internetini kontrol edip tekrar dener misin?');
+const oops = () => Alert.alert('Olmadı 😵', 'İnternetini kontrol edip tekrar dener misin?');
 // toUpperCase Türkçe i/ı'yı bilmiyor
 const trUpper = s => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toUpperCase();
 const initial = name => trUpper((name || '?').trim()[0] || '?');
@@ -198,10 +198,10 @@ const quotaOf = (plan, used) => ({ limit: planOf(plan).limit, used });
 function quotaHintOf(plan, left, tester) {
   if (tester) return '🧪 Test hesabı · sınırsız talep';
   if (plan === 'free') {
-    return left > 0 ? '🎁 haftada 2 ücretsiz talep · her pazartesi yenilenir' : 'bu haftanın ücretsiz hakları bitti 💅 pazartesi yenilenir ya da TalApp+';
+    return left > 0 ? '🎁 Haftada 2 ücretsiz talep · her pazartesi yenilenir' : 'Bu haftanın ücretsiz hakları bitti 💅 pazartesi yenilenir ya da TalApp+';
   }
   const p = planOf(plan);
-  return p.limit === Infinity ? 'diva modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her pazartesi yenilenir`;
+  return p.limit === Infinity ? 'Diva modu açık 👑 · tüm hatlarda' : `${p.desc} · tüm hatlarda ortak · her pazartesi yenilenir`;
 }
 
 const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -718,12 +718,12 @@ function StepShell({ step, colors, title, sub, onBack, onNext, nextTitle, canNex
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.stepTop}>
-            <Pressable onPress={onBack} hitSlop={12}><Text style={styles.back}>← geri</Text></Pressable>
+            <Pressable onPress={onBack} hitSlop={12}><Text style={styles.back}>← Geri</Text></Pressable>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {[1, 2, 3].map(i => <View key={i} style={[styles.dot, i <= step && styles.dotOn]} />)}
             </View>
           </View>
-          <Text style={styles.stepNo}>adım {step}/3</Text>
+          <Text style={styles.stepNo}>Adım {step}/3</Text>
           <Text style={styles.stepTitle}>{title}</Text>
           {sub ? <Text style={styles.stepSub}>{sub}</Text> : null}
           <View style={{ marginTop: 22, flex: 1 }}>{children}</View>
@@ -741,14 +741,14 @@ function Welcome({ colors, title, onPress, footer }) {
     <HoloBg colors={colors}>
       <View style={{ flex: 1, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 22, paddingHorizontal: 24, justifyContent: 'space-between' }}>
         <View style={{ alignItems: 'center' }}>
-          <Sticker text="✦ yeni nesil talep hattı ✦" rotate="-3deg" />
+          <Sticker text="✦ Yeni nesil talep hattı ✦" rotate="-3deg" />
           <HoloText style={styles.logo}>TalApp</HoloText>
-          <Text style={styles.tagline}>sevgilin & kankaların için{'\n'}kendi talep hattını kur 💅</Text>
+          <Text style={styles.tagline}>Sevgilin & kankaların için{'\n'}kendi talep hattını kur 💅</Text>
         </View>
         <View style={{ height: 250 }}>
-          <FloatCard e="💅" t="nail randevusu" st="approved" rot="-6deg" delay={0} style={{ left: 0, top: 0 }} />
-          <FloatCard e="🍕" t="gece 2'de pizza" st="nego" rot="5deg" delay={500} style={{ right: 0, top: 84 }} />
-          <FloatCard e="✈️" t="hafta sonu kaçamağı" st="pending" rot="-3deg" delay={1000} style={{ left: 14, top: 168 }} />
+          <FloatCard e="💅" t="Nail randevusu" st="approved" rot="-6deg" delay={0} style={{ left: 0, top: 0 }} />
+          <FloatCard e="🍕" t="Gece 2'de pizza" st="nego" rot="5deg" delay={500} style={{ right: 0, top: 84 }} />
+          <FloatCard e="✈️" t="Hafta sonu kaçamağı" st="pending" rot="-3deg" delay={1000} style={{ left: 14, top: 168 }} />
         </View>
         <View>
           <ChromeButton hot big title={title} onPress={onPress} />
@@ -799,13 +799,13 @@ function Onboarding({ onDone, onCancel, myName }) {
 
   if (step === 1) {
     return (
-      <StepShell step={1} colors={colors} title="hattına bir isim ver ✦" sub="mesela: Diva Talep Hattı, Kızlar Meclisi, Aşk Bakanlığı 🏛️"
-        onBack={onCancel} onNext={() => setStep(2)} nextTitle="devam →" canNext>
+      <StepShell step={1} colors={colors} title="Hattına bir isim ver ✦" sub="Mesela: Diva Talep Hattı, Kızlar Meclisi, Aşk Bakanlığı 🏛️"
+        onBack={onCancel} onNext={() => setStep(2)} nextTitle="Devam →" canNext>
         <TextInput
           value={name} onChangeText={setName} placeholder="Diva Talep Hattı" placeholderTextColor="#B79BCB"
           style={styles.input} maxLength={32} returnKeyType="next" onSubmitEditing={() => setStep(2)}
         />
-        <Label style={{ marginTop: 22 }}>hattının emojisi</Label>
+        <Label style={{ marginTop: 22 }}>Hattının emojisi</Label>
         <View style={styles.wrap}>
           {EMOJIS.map(e => (
             <Pressable key={e} onPress={() => { tap(); setEmoji(e); }} style={[styles.emojiBox, emoji === e && styles.emojiBoxOn]}>
@@ -816,7 +816,7 @@ function Onboarding({ onDone, onCancel, myName }) {
         <Glass style={styles.preview}>
           <Text style={{ fontSize: 36 }}>{emoji}</Text>
           <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text style={styles.kicker}>önizleme</Text>
+            <Text style={styles.kicker}>Önizleme</Text>
             <Text style={styles.previewName} numberOfLines={2}>{name.trim() || 'Diva Talep Hattı'}</Text>
           </View>
         </Glass>
@@ -826,8 +826,8 @@ function Onboarding({ onDone, onCancel, myName }) {
 
   if (step === 2) {
     return (
-      <StepShell step={2} colors={colors} title="vibe'ını seç 🎨" sub="renkler ve talep başlıkların. sonra da değiştirebilirsin."
-        onBack={() => setStep(1)} onNext={() => setStep(3)} nextTitle="devam →" canNext={cats.some(c => c.on)}>
+      <StepShell step={2} colors={colors} title="Vibe'ını seç 🎨" sub="Renkler ve talep başlıkların. Sonra da değiştirebilirsin."
+        onBack={() => setStep(1)} onNext={() => setStep(3)} nextTitle="Devam →" canNext={cats.some(c => c.on)}>
         <View style={styles.themeRow}>
           {Object.entries(THEMES).map(([k, th]) => (
             <Pressable key={k} onPress={() => { tap(); setTheme(k); }} style={{ alignItems: 'center', flex: 1 }}>
@@ -838,18 +838,18 @@ function Onboarding({ onDone, onCancel, myName }) {
             </Pressable>
           ))}
         </View>
-        <Label style={{ marginTop: 24 }}>talep başlıkları</Label>
+        <Label style={{ marginTop: 24 }}>Talep başlıkları</Label>
         <View style={styles.wrap}>
           {cats.map((c, i) => (
             <Chip key={`${c.t}-${i}`} label={`${c.e} ${c.t}`} on={c.on}
               onPress={() => setCats(cs => cs.map((x, j) => (j === i ? { ...x, on: !x.on } : x)))} />
           ))}
         </View>
-        <Label style={{ marginTop: 18 }}>kendi başlığını ekle</Label>
+        <Label style={{ marginTop: 18 }}>Kendi başlığını ekle</Label>
         <View style={styles.addRow}>
           <View style={styles.emojiNow}><Text style={{ fontSize: 22 }}>{customEmoji}</Text></View>
           <TextInput
-            value={custom} onChangeText={setCustom} placeholder="örn. Boba" placeholderTextColor="#B79BCB"
+            value={custom} onChangeText={setCustom} placeholder="Örn. Boba" placeholderTextColor="#B79BCB"
             style={[styles.input, { flex: 1, marginLeft: 10 }]} maxLength={24} onSubmitEditing={addCustom} returnKeyType="done"
           />
           <ChromeButton title="+" onPress={addCustom} style={{ marginLeft: 10 }} />
@@ -860,13 +860,13 @@ function Onboarding({ onDone, onCancel, myName }) {
   }
 
   return (
-    <StepShell step={3} colors={colors} title="bu hatta adın ne olsun? 🫶" sub="hattaki herkes seni bu isimle görecek."
-      onBack={() => setStep(2)} onNext={finish} nextTitle={busy ? 'hat açılıyor... ✦' : 'hattı aç 🚀'} canNext={!busy && !!me.trim()}>
+    <StepShell step={3} colors={colors} title="Bu hatta adın ne olsun? 🫶" sub="Hattaki herkes seni bu isimle görecek."
+      onBack={() => setStep(2)} onNext={finish} nextTitle={busy ? 'Hat açılıyor... ✦' : 'Hattı aç 🚀'} canNext={!busy && !!me.trim()}>
       <TextInput value={me} onChangeText={setMe} placeholder="Kerime" placeholderTextColor="#B79BCB" style={styles.input} maxLength={20} />
       <Glass style={{ marginTop: 22 }}>
-        <Text style={styles.kicker}>sırada ne var? 💌</Text>
+        <Text style={styles.kicker}>Sırada ne var? 💌</Text>
         <Text style={styles.stepInfo}>
-          hattı açınca sana bir davet kodu vereceğiz. sevgiline ya da kankalarına gönder; TalApp'i indirip kodu yazınca hattına katılırlar.
+          Hattı açınca sana bir davet kodu vereceğiz. Sevgiline ya da kankalarına gönder; TalApp'i indirip kodu yazınca hattına katılırlar.
         </Text>
       </Glass>
     </StepShell>
@@ -946,9 +946,9 @@ function Tour({ steps, onFinish }) {
             <Text style={styles.tourText}>{step.text}</Text>
             <View style={styles.tourButtons}>
               {last ? <View /> : (
-                <Pressable onPress={onFinish} hitSlop={10}><Text style={styles.tourSkip}>geç</Text></Pressable>
+                <Pressable onPress={onFinish} hitSlop={10}><Text style={styles.tourSkip}>Geç</Text></Pressable>
               )}
-              <ChromeButton small hot title={last ? 'başlayalım 💅' : 'ileri ›'} onPress={next} />
+              <ChromeButton small hot title={last ? 'Başlayalım 💅' : 'İleri ›'} onPress={next} />
             </View>
           </View>
         </>
@@ -1079,16 +1079,16 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
       const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6, allowsEditing: true, base64: true });
       if (!res.canceled && res.assets && res.assets.length) setImage({ uri: res.assets[0].uri, base64: res.assets[0].base64 });
     } catch (e) {
-      Alert.alert('olmadı 😵', 'görsel seçilemedi, tekrar dener misin?');
+      Alert.alert('Olmadı 😵', 'Görsel seçilemedi, tekrar dener misin?');
     }
   };
 
   return (
     <Sheet visible={visible} onClose={onClose} colors={colors}>
-      <HoloText style={styles.sheetTitle}>yeni talep ✦</HoloText>
-      <Text style={styles.sheetSub}>kalan hakkın: {left === Infinity ? '∞' : left} · ikna edici ol 😌</Text>
+      <HoloText style={styles.sheetTitle}>Yeni talep ✦</HoloText>
+      <Text style={styles.sheetSub}>Kalan hakkın: {left === Infinity ? '∞' : left} · ikna edici ol 😌</Text>
 
-      <Label style={{ marginTop: 20 }}>kime?</Label>
+      <Label style={{ marginTop: 20 }}>Kime?</Label>
       <View style={styles.wrap}>
         {others.map(m => (
           <Pressable key={m.id} onPress={() => { tap(); setTo(m.id); }} style={[styles.toChip, to === m.id && styles.chipOn]}>
@@ -1098,17 +1098,17 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
         ))}
       </View>
 
-      <Label style={{ marginTop: 20 }}>başlık</Label>
+      <Label style={{ marginTop: 20 }}>Başlık</Label>
       <View style={styles.wrap}>
         {data.line.cats.map(c => <Chip key={c.id} label={`${c.e} ${c.t}`} on={catId === c.id} onPress={() => setCatId(c.id)} />)}
-        <Chip label="＋ yeni başlık" on={newCat !== null} onPress={() => setNewCat(newCat === null ? '' : null)} />
+        <Chip label="＋ Yeni başlık" on={newCat !== null} onPress={() => setNewCat(newCat === null ? '' : null)} />
       </View>
       {newCat !== null ? (
         <>
           <View style={styles.addRow}>
             <View style={styles.emojiNow}><Text style={{ fontSize: 22 }}>{newEmoji}</Text></View>
             <TextInput
-              value={newCat} onChangeText={setNewCat} placeholder="yeni başlık (örn. Boba)" placeholderTextColor="#B79BCB"
+              value={newCat} onChangeText={setNewCat} placeholder="Yeni başlık (örn. Boba)" placeholderTextColor="#B79BCB"
               style={[styles.input, { flex: 1, marginLeft: 10 }]} maxLength={24} autoFocus onSubmitEditing={addCat} returnKeyType="done"
             />
             <ChromeButton title="ekle" onPress={addCat} style={{ marginLeft: 10 }} />
@@ -1117,36 +1117,36 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
         </>
       ) : null}
 
-      <Label style={{ marginTop: 20 }}>ne istiyorsun?</Label>
-      <TextInput value={title} onChangeText={setTitle} placeholder="cumartesi sushi date 🍣" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
+      <Label style={{ marginTop: 20 }}>Ne istiyorsun?</Label>
+      <TextInput value={title} onChangeText={setTitle} placeholder="Cumartesi sushi date 🍣" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
 
-      <Label style={{ marginTop: 16 }}>hangi gün?</Label>
+      <Label style={{ marginTop: 16 }}>Hangi gün?</Label>
       <View style={styles.addRow}>
         <Pressable onPress={() => { tap(); setCalOpen(o => !o); }} style={[styles.input, { flex: 1 }]}>
-          <Text style={[styles.pickTxt, !date && { color: '#B79BCB' }]}>{date ? `📅 ${dayLabel(date)}` : '📅 takvimden seç'}</Text>
+          <Text style={[styles.pickTxt, !date && { color: '#B79BCB' }]}>{date ? `📅 ${dayLabel(date)}` : '📅 Takvimden seç'}</Text>
         </Pressable>
         {date ? <ChromeButton title="✕" onPress={() => { setDate(null); setCalOpen(false); }} style={{ marginLeft: 10 }} /> : null}
       </View>
       {calOpen ? <Calendar value={date} onChange={k => { setDate(k); setCalOpen(false); }} /> : null}
 
-      <Label style={{ marginTop: 16 }}>saat kaçta?</Label>
+      <Label style={{ marginTop: 16 }}>Saat kaçta?</Label>
       <TextInput
         value={time} onChangeText={t => setTime(fmtTime(t))} placeholder="🕗 20:30" placeholderTextColor="#B79BCB"
         keyboardType="number-pad" maxLength={5} style={styles.input}
       />
-      {timeBad ? <Text style={styles.fieldNote}>saati 20:30 gibi tamamla ⏰</Text> : null}
+      {timeBad ? <Text style={styles.fieldNote}>Saati 20:30 gibi tamamla ⏰</Text> : null}
 
-      <Label style={{ marginTop: 16 }}>nerede?</Label>
+      <Label style={{ marginTop: 16 }}>Nerede?</Label>
       <TextInput value={place} onChangeText={setPlace} placeholder="📍 Moda sahil, Kadıköy" placeholderTextColor="#B79BCB" style={styles.input} maxLength={60} />
-      <Text style={styles.hint}>gün, saat ve konum isteğe bağlı ✦{'\n'}günü seçersen, onaylanınca takvimine eklenir 📅 ve 1 gün, 12 saat önce hatırlatılır 🔔</Text>
+      <Text style={styles.hint}>Gün, saat ve konum isteğe bağlı ✦{'\n'}günü seçersen, onaylanınca takvimine eklenir 📅 ve 1 gün, 12 saat önce hatırlatılır 🔔</Text>
 
-      <Label style={{ marginTop: 16 }}>detaylar (ikna et bakalım)</Label>
+      <Label style={{ marginTop: 16 }}>Detaylar (ikna et bakalım)</Label>
       <TextInput
-        value={desc} onChangeText={setDesc} multiline placeholder="çünkü bu hafta çok iyi bir insandım ve bunu hak ediyorum..."
+        value={desc} onChangeText={setDesc} multiline placeholder="Çünkü bu hafta çok iyi bir insandım ve bunu hak ediyorum..."
         placeholderTextColor="#B79BCB" style={[styles.input, styles.textarea]} maxLength={400}
       />
 
-      <Label style={{ marginTop: 16 }}>aciliyet</Label>
+      <Label style={{ marginTop: 16 }}>Aciliyet</Label>
       <View style={styles.segment}>
         {URGENCY.map(u => (
           <Pressable key={u.k} onPress={() => { tap(); setUrgency(u.k); }} style={[styles.segBtn, urgency === u.k && styles.segOn, urgency === u.k && u.k === 'acil' && { backgroundColor: C.hot }]}>
@@ -1155,7 +1155,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
         ))}
       </View>
 
-      <Label style={{ marginTop: 16 }}>görsel / ilham</Label>
+      <Label style={{ marginTop: 16 }}>Görsel / ilham</Label>
       {image ? (
         <View>
           <Image source={{ uri: image.uri }} style={styles.formImg} />
@@ -1164,13 +1164,13 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
       ) : (
         <Pressable onPress={() => { tap(); pick(); }} style={styles.imgAdd}>
           <Text style={{ fontSize: 30 }}>🖼️</Text>
-          <Text style={styles.imgAddTxt}>görsel ekle</Text>
-          <Text style={styles.hint}>istediğin çanta, mekan, nail art... göster ki anlasın</Text>
+          <Text style={styles.imgAddTxt}>Görsel ekle</Text>
+          <Text style={styles.hint}>İstediğin çanta, mekan, nail art... Göster ki anlasın</Text>
         </Pressable>
       )}
 
       <ChromeButton
-        hot big title={busy ? 'fırlatılıyor... 🚀' : 'talebi fırlat 🚀'} disabled={busy || !title.trim() || !to || timeBad}
+        hot big title={busy ? 'Fırlatılıyor... 🚀' : 'Talebi fırlat 🚀'} disabled={busy || !title.trim() || !to || timeBad}
         style={{ marginTop: 26 }} onPress={submit}
       />
     </Sheet>
@@ -1185,7 +1185,7 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
   const [text, setText] = useState('');
   useEffect(() => { if (visible) { setMode(null); setText(''); } }, [visible, r && r.id]);
 
-  const nameOf = id => (data.members.find(m => m.id === id) || { name: 'eski üye' }).name;
+  const nameOf = id => (data.members.find(m => m.id === id) || { name: 'Eski üye' }).name;
   const body = () => {
     if (!r) return null;
     const cat = data.line.cats.find(c => c.id === r.catId);
@@ -1202,35 +1202,35 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
       if (mode === 'reject') {
         actions = (
           <Glass>
-            <Label>ret sebebi seç 💔</Label>
+            <Label>Ret sebebi seç 💔</Label>
             <View style={styles.wrap}>
               {REJECT_REASONS.map(x => <Chip key={x} label={x} on={text === x} onPress={() => setText(x)} />)}
             </View>
-            <TextInput value={text} onChangeText={setText} placeholder="ya da kendin yaz..." placeholderTextColor="#B79BCB" style={[styles.input, { marginTop: 12 }]} maxLength={80} />
+            <TextInput value={text} onChangeText={setText} placeholder="Ya da kendin yaz..." placeholderTextColor="#B79BCB" style={[styles.input, { marginTop: 12 }]} maxLength={80} />
             <View style={styles.actRow}>
-              <ChromeButton small title="vazgeç" onPress={() => setMode(null)} />
-              <ChromeButton small hot title="reddet 💔" disabled={!text.trim()} onPress={() => act.reject(r, text.trim())} />
+              <ChromeButton small title="Vazgeç" onPress={() => setMode(null)} />
+              <ChromeButton small hot title="Reddet 💔" disabled={!text.trim()} onPress={() => act.reject(r, text.trim())} />
             </View>
           </Glass>
         );
       } else if (mode === 'nego') {
         actions = (
           <Glass>
-            <Label>karşı teklifin ne? 🤝</Label>
-            <TextInput value={text} onChangeText={setText} placeholder="tamam ama önce bulaşıklar 🧽" placeholderTextColor="#B79BCB" style={styles.input} maxLength={120} />
+            <Label>Karşı teklifin ne? 🤝</Label>
+            <TextInput value={text} onChangeText={setText} placeholder="Tamam ama önce bulaşıklar 🧽" placeholderTextColor="#B79BCB" style={styles.input} maxLength={120} />
             <View style={styles.actRow}>
-              <ChromeButton small title="vazgeç" onPress={() => setMode(null)} />
-              <ChromeButton small hot title="teklifi gönder" disabled={!text.trim()} onPress={() => act.nego(r, text.trim())} />
+              <ChromeButton small title="Vazgeç" onPress={() => setMode(null)} />
+              <ChromeButton small hot title="Teklifi gönder" disabled={!text.trim()} onPress={() => act.nego(r, text.trim())} />
             </View>
           </Glass>
         );
       } else {
         actions = (
           <View>
-            <ChromeButton hot big title="onayla 💖" onPress={() => act.approve(r)} />
+            <ChromeButton hot big title="Onayla 💖" onPress={() => act.approve(r)} />
             <View style={styles.actRow}>
-              <ChromeButton title="pazarlık 🤝" onPress={() => { setText(''); setMode('nego'); }} style={{ flex: 1 }} />
-              <ChromeButton title="reddet 💔" onPress={() => { setText(''); setMode('reject'); }} style={{ flex: 1 }} />
+              <ChromeButton title="Pazarlık 🤝" onPress={() => { setText(''); setMode('nego'); }} style={{ flex: 1 }} />
+              <ChromeButton title="Reddet 💔" onPress={() => { setText(''); setMode('reject'); }} style={{ flex: 1 }} />
             </View>
           </View>
         );
@@ -1242,32 +1242,32 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
             <Text style={styles.kicker}>{nameOf(r.to)} diyor ki:</Text>
             <Text style={styles.bubbleTxt}>“{lastNego ? lastNego.text : ''}”</Text>
           </Glass>
-          <ChromeButton hot big title="anlaştık ✓" onPress={() => act.accept(r)} style={{ marginTop: 14 }} />
-          <ChromeButton title="talebi geri çek 🫥" onPress={() => act.withdraw(r)} style={{ marginTop: 10 }} />
+          <ChromeButton hot big title="Anlaştık ✓" onPress={() => act.accept(r)} style={{ marginTop: 14 }} />
+          <ChromeButton title="Talebi geri çek 🫥" onPress={() => act.withdraw(r)} style={{ marginTop: 10 }} />
         </View>
       );
     } else if (isFrom && r.status === 'pending') {
-      actions = <ChromeButton title="talebi geri çek 🫥" onPress={() => act.withdraw(r)} />;
+      actions = <ChromeButton title="Talebi geri çek 🫥" onPress={() => act.withdraw(r)} />;
     } else if (isFrom && r.status === 'rejected' && !appealed) {
       actions = mode === 'appeal' ? (
         <Glass>
-          <Label>itiraz dilekçen ⚖️</Label>
+          <Label>İtiraz dilekçen ⚖️</Label>
           <TextInput
-            value={text} onChangeText={setText} multiline placeholder="sayın yargıç, bunu hak ediyorum çünkü..."
+            value={text} onChangeText={setText} multiline placeholder="Sayın yargıç, bunu hak ediyorum çünkü..."
             placeholderTextColor="#B79BCB" style={[styles.input, styles.textarea]} maxLength={200}
           />
           <View style={styles.actRow}>
-            <ChromeButton small title="vazgeç" onPress={() => setMode(null)} />
-            <ChromeButton small hot title="itiraz et" disabled={!text.trim()} onPress={() => act.appeal(r, text.trim())} />
+            <ChromeButton small title="Vazgeç" onPress={() => setMode(null)} />
+            <ChromeButton small hot title="İtiraz et" disabled={!text.trim()} onPress={() => act.appeal(r, text.trim())} />
           </View>
         </Glass>
       ) : (
-        <ChromeButton hot title="itiraz et ⚖️ (1 hak)" onPress={() => { setText(''); setMode('appeal'); }} />
+        <ChromeButton hot title="İtiraz et ⚖️ (1 hak)" onPress={() => { setText(''); setMode('appeal'); }} />
       );
     } else if (isFrom && r.status === 'appeal') {
-      actions = <Text style={styles.info}>itirazın masada ⚖️ karar bekleniyor...</Text>;
+      actions = <Text style={styles.info}>İtirazın masada ⚖️ karar bekleniyor...</Text>;
     } else if (!isTo && !isFrom) {
-      actions = <Text style={styles.info}>bu talep sana ait değil ama izlemek serbest 🍿</Text>;
+      actions = <Text style={styles.info}>Bu talep sana ait değil ama izlemek serbest 🍿</Text>;
     }
 
     return (
@@ -1305,7 +1305,7 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
 
         {actions ? <View style={{ marginTop: 20 }}>{actions}</View> : null}
 
-        <Label style={{ marginTop: 26 }}>talep geçmişi</Label>
+        <Label style={{ marginTop: 26 }}>Talep geçmişi</Label>
         <Glass>
           {r.history.map((h, i) => (
             <View key={i} style={[styles.histRow, i > 0 && styles.histBorder]}>
@@ -1318,7 +1318,7 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
 
         {!isFrom ? (
           <View style={styles.safetyRow}>
-            <Pressable onPress={() => act.report(r)} hitSlop={8}><Text style={styles.safetyTxt}>🚩 şikayet et</Text></Pressable>
+            <Pressable onPress={() => act.report(r)} hitSlop={8}><Text style={styles.safetyTxt}>🚩 Şikayet et</Text></Pressable>
             <Pressable onPress={() => act.block(r.from)} hitSlop={8}><Text style={styles.safetyTxt}>🚫 {nameOf(r.from)}'i engelle</Text></Pressable>
           </View>
         ) : null}
@@ -1351,7 +1351,7 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
   const subscribe = async () => {
     if (!live) {
       if (__DEV__) onPlan(sel, true); // Expo Go'da denemek için
-      else Alert.alert('çok yakında ✦', 'abonelik App Store sürümünde aktif olacak.');
+      else Alert.alert('Çok yakında ✦', 'Abonelik App Store sürümünde aktif olacak.');
       return;
     }
     const pkg = pkgOf(sel);
@@ -1366,11 +1366,11 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
   };
 
   const restoreBuys = async () => {
-    if (!live) { Alert.alert('geri yükle', 'abonelik App Store sürümünde aktif olacak ✦'); return; }
+    if (!live) { Alert.alert('Geri yükle', 'Abonelik App Store sürümünde aktif olacak ✦'); return; }
     setBusy(true);
     try {
       const k = await restore();
-      if (k === 'free') Alert.alert('bulunamadı', 'bu Apple ID\'de aktif TalApp+ aboneliği yok.');
+      if (k === 'free') Alert.alert('Bulunamadı', 'Bu Apple ID\'de aktif TalApp+ aboneliği yok.');
       else onPlan(k);
     } catch (e) {
       oops();
@@ -1385,11 +1385,11 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
         <HoloText style={styles.payTitle}>TalApp+</HoloText>
         <Text style={styles.paySub}>
           {{
-            free: 'bu haftanın 2 ücretsiz talebi bitti 😩\npazartesiyi bekleme, divalar beklemez.',
-            limit: 'bu haftaki 10 talebin doldu 😩\nsınırsıza geç, divalar beklemez.',
-          }[reason] || 'daha çok talep, daha çok drama ✦'}
+            free: 'Bu haftanın 2 ücretsiz talebi bitti 😩\nPazartesiyi bekleme, divalar beklemez.',
+            limit: 'Bu haftaki 10 talebin doldu 😩\nSınırsıza geç, divalar beklemez.',
+          }[reason] || 'Daha çok talep, daha çok drama ✦'}
         </Text>
-        <Text style={styles.sheetSub}>abonelik tüm hatlarında geçerli ✦</Text>
+        <Text style={styles.sheetSub}>Abonelik tüm hatlarında geçerli ✦</Text>
       </View>
 
       <View style={[styles.segment, { marginTop: 22 }]}>
@@ -1423,14 +1423,14 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
 
       <ChromeButton
         hot big style={{ marginTop: 26 }} disabled={busy || plan === sel}
-        title={plan === sel ? 'zaten bu plandasın ✓' : busy ? 'bekle bi sn... ✦' : !live && __DEV__ ? 'abone ol (test) ✦' : 'abone ol ✦'}
+        title={plan === sel ? 'Zaten bu plandasın ✓' : busy ? 'Bekle bi sn... ✦' : !live && __DEV__ ? 'Abone ol (test) ✦' : 'Abone ol ✦'}
         onPress={subscribe}
       />
       <Pressable onPress={restoreBuys} disabled={busy}>
-        <Text style={styles.restore}>satın alımları geri yükle</Text>
+        <Text style={styles.restore}>Satın alımları geri yükle</Text>
       </Pressable>
       <Text style={styles.fine}>
-        abonelik seçtiğin döneme göre haftalık ya da aylık yenilenir; ücret Apple ID'nden alınır ve dönem bitmeden en az 24 saat önce iptal edilmedikçe otomatik yenilenir.
+        Abonelik seçtiğin döneme göre haftalık ya da aylık yenilenir; ücret Apple ID'nden alınır ve dönem bitmeden en az 24 saat önce iptal edilmedikçe otomatik yenilenir.
         App Store hesap ayarlarından istediğin zaman iptal edebilirsin.
       </Text>
       <Text style={styles.fine}>
@@ -1438,7 +1438,7 @@ function PaywallSheet({ visible, onClose, reason, plan, colors, onPlan }) {
         {PRIVACY_URL ? (
           <>
             {'  ·  '}
-            <Text style={styles.link} onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}>gizlilik politikası</Text>
+            <Text style={styles.link} onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}>Gizlilik politikası</Text>
           </>
         ) : null}
       </Text>
@@ -1460,26 +1460,26 @@ function InviteSheet({ visible, onClose, line, members, colors, fresh }) {
     } catch (e) {}
   };
   const steps = [
-    ['📲', 'aşağıdaki butonla davet mesajını gönder (WhatsApp, Instagram, SMS...)'],
-    ['⬇️', 'arkadaşın TalApp\'i indirip kaydolsun'],
-    ['🔑', `"kodla katıl"a basıp kodu yazsın: ${line.code}`],
-    ['🔔', 'hattına katılınca sana bildirim gelir, artık talep atabilirsiniz'],
+    ['📲', 'Aşağıdaki butonla davet mesajını gönder (WhatsApp, Instagram, SMS...)'],
+    ['⬇️', 'Arkadaşın TalApp\'i indirip kaydolsun'],
+    ['🔑', `"Kodla katıl"a basıp kodu yazsın: ${line.code}`],
+    ['🔔', 'Hattına katılınca sana bildirim gelir, artık talep atabilirsiniz'],
   ];
   return (
     <Sheet visible={visible} onClose={onClose} colors={colors}>
       <View style={{ alignItems: 'center' }}>
         <Text style={{ fontSize: 60 }}>{fresh ? '🎉' : '💌'}</Text>
-        <HoloText style={styles.sheetTitle}>{fresh ? 'hattın hazır!' : 'kişileri davet et'}</HoloText>
+        <HoloText style={styles.sheetTitle}>{fresh ? 'Hattın hazır!' : 'Kişileri davet et'}</HoloText>
         <Text style={styles.paySub}>
-          {fresh ? 'şimdi talep atacağın kişileri çağır 💌' : `${line.name} hattında şu an ${members} kişi var.`}
+          {fresh ? 'Şimdi talep atacağın kişileri çağır 💌' : `${line.name} hattında şu an ${members} kişi var.`}
         </Text>
         <LinearGradient colors={CHROME} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.codeBox, styles.codeRow]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.kicker}>davet kodun</Text>
+            <Text style={styles.kicker}>Davet kodun</Text>
             <Text style={styles.code} numberOfLines={1} adjustsFontSizeToFit>{line.code}</Text>
           </View>
           <Pressable onPress={copy} hitSlop={8} style={[styles.copyBtn, copied && { backgroundColor: C.mint }]}>
-            <Text style={styles.copyTxt}>{copied ? 'kopyalandı ✓' : 'kopyala'}</Text>
+            <Text style={styles.copyTxt}>{copied ? 'Kopyalandı ✓' : 'kopyala'}</Text>
           </Pressable>
         </LinearGradient>
       </View>
@@ -1493,10 +1493,10 @@ function InviteSheet({ visible, onClose, line, members, colors, fresh }) {
         ))}
       </Glass>
 
-      <ChromeButton hot big title="davet mesajını gönder 📲" onPress={share} style={{ marginTop: 22 }} />
+      <ChromeButton hot big title="Davet mesajını gönder 📲" onPress={share} style={{ marginTop: 22 }} />
       {fresh ? (
         <Pressable onPress={onClose} hitSlop={10}>
-          <Text style={styles.restore}>sonra davet ederim</Text>
+          <Text style={styles.restore}>Sonra davet ederim</Text>
         </Pressable>
       ) : null}
     </Sheet>
@@ -1515,8 +1515,8 @@ function JoinSheet({ visible, onClose, onJoin, myName }) {
     setBusy(true);
     setMsg('');
     const res = await onJoin(code.trim(), name.trim() || 'Ben');
-    if (res === 'notfound') setMsg('bu kodla bir hat bulamadık 🤔 harfleri kontrol eder misin?');
-    else if (res === 'error') setMsg('olmadı 😵 internetini kontrol edip tekrar dener misin?');
+    if (res === 'notfound') setMsg('Bu kodla bir hat bulamadık 🤔 harfleri kontrol eder misin?');
+    else if (res === 'error') setMsg('Olmadı 😵 internetini kontrol edip tekrar dener misin?');
     if (res !== 'ok') setBusy(false);
   };
 
@@ -1524,19 +1524,19 @@ function JoinSheet({ visible, onClose, onJoin, myName }) {
     <Sheet visible={visible} onClose={onClose} colors={THEMES.bubblegum.colors}>
       <View style={{ alignItems: 'center' }}>
         <Text style={{ fontSize: 60 }}>🔑</Text>
-        <HoloText style={styles.sheetTitle}>kodla katıl</HoloText>
+        <HoloText style={styles.sheetTitle}>Kodla katıl</HoloText>
         <Text style={styles.paySub}>Davet kodunu gir ✦</Text>
       </View>
-      <Label style={{ marginTop: 22 }}>davet kodu</Label>
+      <Label style={{ marginTop: 22 }}>Davet kodu</Label>
       <TextInput
         value={code} onChangeText={t => setCode(t.toUpperCase())} placeholder="DIVA-7K2QX" placeholderTextColor="#B79BCB"
         style={[styles.input, styles.codeInput]} autoCapitalize="characters" autoCorrect={false} maxLength={12}
       />
-      <Label style={{ marginTop: 16 }}>hatta adın ne olsun?</Label>
+      <Label style={{ marginTop: 16 }}>Hatta adın ne olsun?</Label>
       <TextInput value={name} onChangeText={setName} placeholder="Kerime" placeholderTextColor="#B79BCB" style={styles.input} maxLength={20} />
       {msg ? <Glass style={{ marginTop: 16 }}><Text style={styles.info}>{msg}</Text></Glass> : null}
       <ChromeButton
-        hot big title={busy ? 'katılıyorsun... ✦' : 'hatta katıl 🚀'} disabled={busy || code.trim().length < 6}
+        hot big title={busy ? 'Katılıyorsun... ✦' : 'Hatta katıl 🚀'} disabled={busy || code.trim().length < 6}
         onPress={submit} style={{ marginTop: 24 }}
       />
     </Sheet>
@@ -1555,7 +1555,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
   const viewer = data.members.find(m => m.id === data.meId) || { id: data.meId, name: '' };
   const others = data.members.filter(m => m.id !== viewer.id);
   const isOwner = data.owner === data.meId;
-  const nameOf = id => (data.members.find(m => m.id === id) || { name: 'eski üye' }).name;
+  const nameOf = id => (data.members.find(m => m.id === id) || { name: 'Eski üye' }).name;
 
   const [tab, setTab] = useState('in');
   const [sheet, setSheet] = useState(fresh ? 'invite' : null); // 'new' | 'detail' | 'paywall' | 'invite' | 'menu'
@@ -1607,7 +1607,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
   const limitReason = plan === 'free' ? 'free' : 'limit';
 
   const celebrate = msg => { success(); setBurst(Date.now()); toast(msg); };
-  const failed = () => { toast('😵 olmadı, internetini kontrol et'); reload(); };
+  const failed = () => { toast('😵 Olmadı, internetini kontrol et'); reload(); };
   const onRefresh = async () => { setRefreshing(true); await reload(); setRefreshing(false); };
 
   // Durum değişikliği: ekranda hemen, sunucuda arkadan (karşı tarafa bildirimi sunucu atar)
@@ -1629,45 +1629,45 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
     approve: r => {
       change(r, 'approved', 'approved');
       const cal = toCalendar(r);
-      closeThen(async () => celebrate(`💖 onaylandı! ${nameOf(r.from)} uçuyor şu an${await cal}`));
+      closeThen(async () => celebrate(`💖 Onaylandı! ${nameOf(r.from)} uçuyor şu an${await cal}`));
     },
     reject: (r, reason) => {
       change(r, 'rejected', 'rejected', reason);
-      closeThen(() => toast('💔 reddedildi. acımasızsın ama haklısın'));
+      closeThen(() => toast('💔 Reddedildi. Acımasızsın ama haklısın'));
     },
     nego: (r, text) => {
       change(r, 'nego', 'nego', text);
-      closeThen(() => toast('🤝 karşı teklif masada'));
+      closeThen(() => toast('🤝 Karşı teklif masada'));
     },
     accept: r => {
       change(r, 'accepted', 'approved');
       const cal = toCalendar(r);
-      closeThen(async () => celebrate(`✅ anlaştınız! talep onaylandı${await cal}`));
+      closeThen(async () => celebrate(`✅ Anlaştınız! Talep onaylandı${await cal}`));
     },
     appeal: (r, text) => {
       change(r, 'appeal', 'appeal', text);
-      closeThen(() => toast('⚖️ itiraz edildi, mahkeme toplanıyor'));
+      closeThen(() => toast('⚖️ İtiraz edildi, mahkeme toplanıyor'));
     },
     withdraw: r => {
       setData(d => ({ ...d, requests: d.requests.filter(x => x.id !== r.id) }));
       api.deleteRequest(r.id).catch(failed);
-      closeThen(() => toast('🫥 talep geri çekildi'));
+      closeThen(() => toast('🫥 Talep geri çekildi'));
     },
-    report: r => Alert.alert('neden şikayet ediyorsun? 🚩', 'şikayetin 24 saat içinde incelenir.', [
-      ...['uygunsuz içerik', 'taciz / zorbalık', 'spam'].map(reason => ({
+    report: r => Alert.alert('Neden şikayet ediyorsun? 🚩', 'Şikayetin 24 saat içinde incelenir.', [
+      ...['Uygunsuz içerik', 'Taciz / zorbalık', 'spam'].map(reason => ({
         text: reason,
         onPress: () => api.reportRequest(viewer.id, r, reason)
-          .then(() => closeThen(() => toast('🚩 şikayetin alındı, teşekkürler')))
+          .then(() => closeThen(() => toast('🚩 Şikayetin alındı, teşekkürler')))
           .catch(oops),
       })),
-      { text: 'vazgeç', style: 'cancel' },
+      { text: 'Vazgeç', style: 'cancel' },
     ]),
-    block: id => Alert.alert(`${nameOf(id)} engellensin mi? 🚫`, 'sana talep atamaz, talepleri de sana görünmez.', [
-      { text: 'vazgeç', style: 'cancel' },
+    block: id => Alert.alert(`${nameOf(id)} engellensin mi? 🚫`, 'Sana talep atamaz, talepleri de sana görünmez.', [
+      { text: 'Vazgeç', style: 'cancel' },
       {
         text: 'engelle', style: 'destructive',
         onPress: () => api.blockUser(viewer.id, id)
-          .then(() => { closeThen(() => toast('🚫 engellendi')); reload(); })
+          .then(() => { closeThen(() => toast('🚫 Engellendi')); reload(); })
           .catch(oops),
       },
     ]),
@@ -1688,7 +1688,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
       return false;
     }
     setTab('out');
-    closeThen(() => { success(); toast(`🚀 talep fırlatıldı · ${nameOf(to)} bildirim aldı 🔔`); });
+    closeThen(() => { success(); toast(`🚀 Talep fırlatıldı · ${nameOf(to)} bildirim aldı 🔔`); });
     return true;
   };
 
@@ -1712,12 +1712,12 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
   };
 
   const leave = () => Alert.alert(
-    isOwner ? 'hat silinsin mi?' : 'hattan ayrılıyor musun?',
-    isOwner ? 'hat ve içindeki tüm talepler herkes için silinir.' : 'bu hattaki talepleri artık göremezsin. kodla tekrar katılabilirsin.',
+    isOwner ? 'Hat silinsin mi?' : 'Hattan ayrılıyor musun?',
+    isOwner ? 'Hat ve içindeki tüm talepler herkes için silinir.' : 'Bu hattaki talepleri artık göremezsin. Kodla tekrar katılabilirsin.',
     [
-      { text: 'vazgeç', style: 'cancel' },
+      { text: 'Vazgeç', style: 'cancel' },
       {
-        text: isOwner ? 'hattı sil' : 'ayrıl', style: 'destructive',
+        text: isOwner ? 'Hattı sil' : 'Ayrıl', style: 'destructive',
         onPress: async () => {
           try {
             if (isOwner) await api.deleteLine(data.id);
@@ -1731,15 +1731,15 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
     ],
   );
 
-  const kick = () => Alert.alert('kimi hattan çıkarmak istiyorsun?', 'çıkan kişi bu hattaki talepleri göremez.', [
+  const kick = () => Alert.alert('Kimi hattan çıkarmak istiyorsun?', 'Çıkan kişi bu hattaki talepleri göremez.', [
     ...others.map(m => ({
       text: m.name,
-      onPress: () => Alert.alert(`${m.name} hattan çıkarılsın mı?`, 'davet kodunu bildiği için tekrar katılabilir; istemiyorsan talebinden onu engelle.', [
-        { text: 'vazgeç', style: 'cancel' },
-        { text: 'çıkar', style: 'destructive', onPress: () => api.removeMember(data.id, m.id).then(reload).catch(oops) },
+      onPress: () => Alert.alert(`${m.name} hattan çıkarılsın mı?`, 'Davet kodunu bildiği için tekrar katılabilir; istemiyorsan talebinden onu engelle.', [
+        { text: 'Vazgeç', style: 'cancel' },
+        { text: 'Çıkar', style: 'destructive', onPress: () => api.removeMember(data.id, m.id).then(reload).catch(oops) },
       ]),
     })),
-    { text: 'vazgeç', style: 'cancel' },
+    { text: 'Vazgeç', style: 'cancel' },
   ]);
 
   const menuItems = [
@@ -1756,9 +1756,9 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
   const detail = data.requests.find(r => r.id === detailId);
 
   const EMPTY = {
-    in: ['📭', 'gelen kutun bomboş', 'biri sana talep atınca burada parlayacak ✦'],
-    out: ['🚀', 'henüz talep atmadın', 'ilk talebini fırlat, bakalım onaylanacak mı 👀'],
-    all: ['🫧', 'hat sessiz...', 'fırtına öncesi sessizlik bu 🌪️'],
+    in: ['📭', 'Gelen kutun bomboş', 'Biri sana talep atınca burada parlayacak ✦'],
+    out: ['🚀', 'Henüz talep atmadın', 'İlk talebini fırlat, bakalım onaylanacak mı 👀'],
+    all: ['🫧', 'Hat sessiz...', 'Fırtına öncesi sessizlik bu 🌪️'],
   }[tab];
 
   return (
@@ -1771,7 +1771,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
         <View style={styles.homeHead}>
           <View style={styles.lineEmoji}><Text style={{ fontSize: 30 }}>{data.line.emoji}</Text></View>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.kicker}>talep hattı ✦</Text>
+            <Text style={styles.kicker}>Talep hattı ✦</Text>
             <Text style={styles.lineName} numberOfLines={2}>{data.line.name}</Text>
           </View>
           <View ref={navRef} collapsable={false} style={{ flexDirection: 'row' }}>
@@ -1784,7 +1784,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
           </View>
         </View>
 
-        <Text style={[styles.label, { marginTop: 16 }]}>bu hatta kimler var 🫶</Text>
+        <Text style={[styles.label, { marginTop: 16 }]}>Bu hatta kimler var 🫶</Text>
         <View ref={membersRef} collapsable={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
           {data.members.map((m, i) => {
@@ -1797,7 +1797,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
             );
           })}
           <Pressable onPress={() => { tap(); setSheet('invite'); }} style={[styles.viewerChip, styles.inviteChip]}>
-            <Text style={[styles.viewerName, { color: C.hot }]}>＋ davet et</Text>
+            <Text style={[styles.viewerName, { color: C.hot }]}>＋ Davet et</Text>
           </Pressable>
         </ScrollView>
         </View>
@@ -1807,10 +1807,10 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
             <Glass style={styles.aloneCard}>
               <Text style={{ fontSize: 26 }}>💌</Text>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.aloneTitle}>hattında henüz kimse yok</Text>
-                <Text style={styles.aloneSub}>talep atmak için birini davet et</Text>
+                <Text style={styles.aloneTitle}>Hattında henüz kimse yok</Text>
+                <Text style={styles.aloneSub}>Talep atmak için birini davet et</Text>
               </View>
-              <Text style={styles.aloneBtn}>davet et ›</Text>
+              <Text style={styles.aloneBtn}>Davet et ›</Text>
             </Glass>
           </Pressable>
         ) : null}
@@ -1818,7 +1818,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
         <Glass style={{ marginTop: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>bu haftaki talep hakkın</Text>
+              <Text style={styles.label}>Bu haftaki talep hakkın</Text>
               <HoloText style={styles.quotaBig}>{limit === Infinity ? '∞' : `${left}/${limit}`}</HoloText>
               <Text style={styles.quotaHint}>{quotaHint}</Text>
             </View>
@@ -1834,7 +1834,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
         </Glass>
 
         <View ref={tabsRef} collapsable={false} style={styles.tabs}>
-          {[['in', 'gelen'], ['out', 'giden'], ['all', 'tüm hat']].map(([k, t]) => (
+          {[['in', 'gelen'], ['out', 'giden'], ['all', 'Tüm hat']].map(([k, t]) => (
             <Pressable key={k} onPress={() => { tap(); setTab(k); }} style={[styles.tab, tab === k && styles.tabOn]}>
               <Text style={[styles.tabTxt, tab === k && styles.tabTxtOn]}>{t}</Text>
               {k === 'in' && inPending > 0 ? <View style={styles.badge}><Text style={styles.badgeTxt}>{inPending}</Text></View> : null}
@@ -1900,19 +1900,19 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
           onFinish={endTour}
           steps={[
             {
-              ref: membersRef, title: 'hattaki kişiler 🫶',
-              text: 'hattında kimler var burada görürsün. "＋ davet et" ile sevgilini ya da kankalarını çağır, davet kodunu paylaş.',
+              ref: membersRef, title: 'Hattaki kişiler 🫶',
+              text: 'Hattında kimler var burada görürsün. "＋ Davet et" ile sevgilini ya da kankalarını çağır, davet kodunu paylaş.',
             },
             {
-              ref: tabsRef, title: 'gelen · giden · tüm hat 📬',
-              text: 'sana gelen talepler, senin attıkların ve hattaki her şey. cevap bekleyenler pembe rozetle görünür. bir talebe dokununca onaylar, reddeder ya da pazarlık edersin 🤝',
+              ref: tabsRef, title: 'Gelen · giden · tüm hat 📬',
+              text: 'Sana gelen talepler, senin attıkların ve hattaki her şey. Cevap bekleyenler pembe rozetle görünür. Bir talebe dokununca onaylar, reddeder ya da pazarlık edersin 🤝',
             },
             {
-              ref: fabRef, title: others.length ? 'talep at ✦' : 'önce birini davet et 💌',
-              text: `${others.length ? 'ne istediğini yaz' : 'biri hattına katılınca bu buton "✦ TALEP AT ✦" olur'}; gün, saat, konum ve fotoğraf ekleyebilirsin. talep onaylanınca gün ve saatiyle telefon takvimine otomatik eklenir 📅 ve 1 gün, 12 saat önce hatırlatılır 🔔`,
+              ref: fabRef, title: others.length ? 'Talep at ✦' : 'Önce birini davet et 💌',
+              text: `${others.length ? 'Ne istediğini yaz' : 'Biri hattına katılınca bu buton "✦ TALEP AT ✦" olur'}; gün, saat, konum ve fotoğraf ekleyebilirsin. Talep onaylanınca gün ve saatiyle telefon takvimine otomatik eklenir 📅 ve 1 gün, 12 saat önce hatırlatılır 🔔`,
             },
             {
-              ref: navRef, title: 'ana sayfa ve ayarlar',
+              ref: navRef, title: 'Ana sayfa ve ayarlar',
               text: '🏠 ile tüm hatlarına dönersin. ⚙︎ ile kişileri davet eder, TalApp+ planlarına bakar ve hattını yönetirsin.',
             },
           ]}
@@ -1958,8 +1958,8 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, on
       >
         <View style={styles.homeHead}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.kicker}>{userName ? `selam ${userName} 👋` : 'ana sayfa ✦'}</Text>
-            <HoloText style={styles.hubTitle}>hatlarım</HoloText>
+            <Text style={styles.kicker}>{userName ? `Selam ${userName} 👋` : 'Ana sayfa ✦'}</Text>
+            <HoloText style={styles.hubTitle}>Hatlarım</HoloText>
           </View>
           <Pressable ref={accountRef} onPress={() => { tap(); onAccount(); }} hitSlop={10} style={store.avatar ? null : styles.gear}>
             {store.avatar
@@ -1969,7 +1969,7 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, on
         </View>
         {!store.avatar ? (
           <Pressable onPress={() => { tap(); onAvatar(); }} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
-            <Text style={styles.avatarHint}>📸 profil fotoğrafı ekle (isteğe bağlı)</Text>
+            <Text style={styles.avatarHint}>📸 Profil fotoğrafı ekle (isteğe bağlı)</Text>
           </Pressable>
         ) : null}
 
@@ -1991,9 +1991,9 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, on
         {store.lines.length === 0 ? (
           <Glass style={{ alignItems: 'center', paddingVertical: 34, marginTop: 18 }}>
             <Text style={{ fontSize: 54 }}>🫧</Text>
-            <Text style={styles.emptyTitle}>henüz hattın yok</Text>
+            <Text style={styles.emptyTitle}>Henüz hattın yok</Text>
             <Text style={styles.emptySub}>
-              kendi hattını kur ya da sana gelen davet koduyla bir hatta katıl ✦{'\n'}sevgilin, kankaların, ev arkadaşların...
+              Kendi hattını kur ya da sana gelen davet koduyla bir hatta katıl ✦{'\n'}sevgilin, kankaların, ev arkadaşların...
             </Text>
           </Glass>
         ) : null}
@@ -2035,20 +2035,20 @@ function Lines({ store, userName, onOpen, onNew, onJoin, onAccount, onAvatar, on
           onFinish={endTour}
           steps={[
             {
-              ref: quotaRef, title: 'haftalık talep hakkın 🎁',
-              text: `ücretsiz planda haftada ${PLANS[0].limit} talep atabilirsin. hak bütün hatlarında ortak ve her pazartesi yenilenir.`,
+              ref: quotaRef, title: 'Haftalık talep hakkın 🎁',
+              text: `Ücretsiz planda haftada ${PLANS[0].limit} talep atabilirsin. Hak bütün hatlarında ortak ve her pazartesi yenilenir.`,
             },
             {
-              ref: newRef, title: 'kendi hattını kur ✦',
-              text: 'sevgilin, kankaların ya da ev arkadaşların için bir talep hattı aç. mesela "Diva Talep Hattı" 💅 istediğin kadar hat kurabilirsin.',
+              ref: newRef, title: 'Kendi hattını kur ✦',
+              text: 'Sevgilin, kankaların ya da ev arkadaşların için bir talep hattı aç. Mesela "Diva Talep Hattı" 💅 istediğin kadar hat kurabilirsin.',
             },
             {
               ref: joinRef, title: 'Kodla katıl 🔑',
               text: 'Biri seni kendi hattına çağırdıysa buraya bas ve davet kodunu gir.',
             },
             {
-              ref: accountRef, title: 'hesabın 👤',
-              text: 'profil fotoğrafı, destek, çıkış ve hesap ayarların burada. bu rehberi de buradan tekrar izleyebilirsin.',
+              ref: accountRef, title: 'Hesabın 👤',
+              text: 'Profil fotoğrafı, destek, çıkış ve hesap ayarların burada. Bu rehberi de buradan tekrar izleyebilirsin.',
             },
           ]}
         />
