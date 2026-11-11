@@ -40,11 +40,11 @@ export async function scheduleReminders(r, { lineId, line, cat } = {}) {
     const what = `${cat ? `${cat.e} ` : ''}${r.title}`;
     const where = [r.time && `🕗 ${r.time}`, r.place && `📍 ${r.place}`, line && `💌 ${line}`].filter(Boolean).join('  ·  ');
     const ids = [];
-    for (const [before, title] of [[24 * HOUR, `yarın: ${what} 📅`], [12 * HOUR, `12 saat kaldı ⏰ ${what}`]]) {
+    for (const [before, title] of [[24 * HOUR, `📅 Yarın: ${what}`], [12 * HOUR, `⏰ 12 saat kaldı: ${what}`]]) {
       const at = start - before;
       if (at <= Date.now()) continue;
       ids.push(await Notifications.scheduleNotificationAsync({
-        content: { title, body: where || 'onaylı talebin yaklaşıyor ✦', data: { line: lineId } },
+        content: { title, body: where || 'Onaylı talebin yaklaşıyor ✦', data: { line: lineId, request: r.id } },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(at) },
       }));
     }
@@ -82,7 +82,7 @@ export async function testReminder() {
   if (!granted) ({ granted } = await Notifications.requestPermissionsAsync());
   if (!granted) return false;
   await Notifications.scheduleNotificationAsync({
-    content: { title: 'yarın: 🍣 sushi date 📅', body: '🕗 20:30  ·  📍 Moda sahil  ·  💌 Diva Talep Hattı' },
+    content: { title: '📅 Yarın: 🍣 Sushi date', body: '🕗 20:30  ·  📍 Moda sahil  ·  💌 Diva Talep Hattı' },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 10 },
   });
   return true;

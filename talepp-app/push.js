@@ -43,11 +43,11 @@ export async function clearPush() {
   }
 }
 
-// Bildirime dokununca ilgili hattın id'siyle cb çağrılır (uygulama kapalıyken açıldıysa da)
+// Bildirime dokununca cb(hat id, talep id) çağrılır (uygulama kapalıyken açıldıysa da); talep id olmayabilir
 export function onPushOpen(cb) {
   const handle = r => {
     const d = (r && r.notification.request.content.data) || {};
-    if (d.line) cb(d.line);
+    if (d.line) cb(d.line, d.request || null);
   };
   Notifications.getLastNotificationResponseAsync().then(handle).catch(() => {});
   const sub = Notifications.addNotificationResponseReceivedListener(handle);

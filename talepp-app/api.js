@@ -21,7 +21,8 @@ export async function fetchAll(userId) {
     ids.length ? supabase.from('talepp_members').select('*').in('line_id', ids).order('joined_at') : { data: [] },
     ids.length ? supabase.from('talepp_requests').select('*').in('line_id', ids).order('created_at', { ascending: false }) : { data: [] },
     supabase.from('talepp_blocks').select('blocked'),
-    supabase.from('talepp_profiles').select('free_used, avatar').eq('id', userId).maybeSingle(),
+    // '*': schema-4.sql çalıştırılmadan önce de (tester sütunu yokken) hata vermesin
+    supabase.from('talepp_profiles').select('*').eq('id', userId).maybeSingle(),
   ]);
   const failed = [mem, req, blk, prof].find(r => r.error);
   if (failed) throw failed.error;
