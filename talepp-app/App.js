@@ -9,6 +9,7 @@ import MaskedView from '@react-native-masked-view/masked-view';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Unbounded_500Medium, Unbounded_700Bold, Unbounded_900Black } from '@expo-google-fonts/unbounded';
@@ -92,6 +93,11 @@ const STATUS = {
   appeal: { t: 'İTİRAZDA', e: '⚖️', bg: '#E2C6FF' },
 };
 const OPEN = ['pending', 'nego', 'appeal'];
+// Sıra kimde? Bekleyen ve itirazdaki talebe alıcı, pazarlıktakine (karşı teklif geri döndüğü için) talebi atan cevap verir.
+// Bu yüzden pazarlıktaki talep, talebi atanın "gelen"ine ve karşı teklifi verenin "giden"ine düşer.
+const isIncoming = (r, me) => (r.status === 'nego' ? r.from : r.to) === me;
+const isOutgoing = (r, me) => (r.status === 'nego' ? r.to : r.from) === me;
+const myTurn = (r, me) => OPEN.includes(r.status) && isIncoming(r, me);
 
 const HIST = {
   created: '🚀 talebi fırlattı',
@@ -189,7 +195,8 @@ const meName = l => ((l && l.members.find(m => m.id === l.meId)) || { name: '' }
 const userNameOf = user => (user && user.user_metadata && user.user_metadata.name) || '';
 
 const quotaOf = (plan, used) => ({ limit: planOf(plan).limit, used });
-function quotaHintOf(plan, left) {
+function quotaHintOf(plan, left, tester) {
+  if (tester) return '🧪 Test hesabı · sınırsız talep';
   if (plan === 'free') {
     return left > 0 ? '🎁 haftada 2 ücretsiz talep · her pazartesi yenilenir' : 'bu haftanın ücretsiz hakları bitti 💅 pazartesi yenilenir ya da TalApp+';
   }
@@ -253,7 +260,8 @@ function HoloBg({ colors, children }) {
       </Animated.View>
       <View style={styles.sheen} />
       {SPARKS.map((p, i) => <Sparkle key={i} {...p} />)}
-      {children}
+      {/* iPad'de içerik ortalanır; telefonda tam genişlik */}
+      <View style={styles.frame}>{children}</View>
     </View>
   );
 }

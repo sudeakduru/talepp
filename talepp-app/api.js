@@ -39,6 +39,10 @@ export async function fetchAll(userId) {
   }
 
   return {
+    // profil yoksa (Apple ile ilk giriş ya da Yumi hesabı) ad ve yaş istenir
+    hasProfile: !!prof.data,
+    name: (prof.data && prof.data.name) || '',
+    tester: !!(prof.data && prof.data.tester),
     freeUsed: !!(prof.data && prof.data.free_used),
     avatar: (prof.data && prof.data.avatar) || null,
     lines: lines.map(l => ({
@@ -50,6 +54,13 @@ export async function fetchAll(userId) {
       requests: reqs.filter(r => r.line_id === l.id).map(r => toReq(r, urls)),
     })),
   };
+}
+
+// Apple ile girişte (ya da Yumi hesabıyla ilk girişte) TalApp profilini açar
+export async function ensureProfile(name, age) {
+  const { error } = await supabase.rpc('talepp_ensure_profile', { p_name: name, p_age: age });
+  if (error) throw error;
+  await supabase.auth.updateUser({ data: { name } }).catch(() => {});
 }
 
 // Kod çakışırsa (çok nadir) yeni kodla tekrar dener
