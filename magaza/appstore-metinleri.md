@@ -146,6 +146,7 @@ CALENDAR: when a request that has a date is approved, the app asks for calendar 
 
 ## Ekran görüntüleri
 
+- iPad desteği açık olduğu için **13" iPad (2064 × 2752)** ekran görüntüsü de zorunlu. iPad yoksa Xcode simülatörü ya da TestFlight'taki bir iPad ile çekilir.
 - Zorunlu boyut: 6.9" iPhone (1320 × 2868), ya da 6.5" (1284 × 2778). Güncel bir Pro Max ile çekilen ekran görüntüsü doğrudan bu boyutta olur. Elindeki telefon farklı boyuttaysa söyle, ölçeklendiririm.
 - 4–6 adet, bu sırayla: hatlarım → hat içi (talep listesi) → yeni talep (takvim açık) → talep detayı (pazarlık) → davet ekranı → TalApp+ ekranı
 - Gerçek kişisel bilgi olmasın; demo hesaptan çek.
