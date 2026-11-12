@@ -2096,7 +2096,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
             },
             {
               ref: fabRef, title: others.length ? 'Talep at ✦' : 'Önce birini davet et 💌',
-              text: `${others.length ? 'Ne istediğini yaz' : 'Biri hattına katılınca bu buton "✦ TALEP AT ✦" olur'}; gün, saat, konum ve fotoğraf ekleyebilirsin. Talep onaylanınca gün ve saatiyle telefon takvimine otomatik eklenir 📅 ve 1 gün, 12 saat önce hatırlatılır 🔔`,
+              text: `${others.length ? 'Ne istediğini yaz' : 'Biri hattına katılınca bu buton "✦ TALEP AT ✦" olur'}; gün, saat, konum ve fotoğraf ekleyebilirsin. Birden fazla kişi seçersen grup talebi olur, kimin onayladığını kartta görürsün 👥 Talep onaylanınca gün ve saatiyle telefon takvimine otomatik eklenir 📅 ve 1 gün, 12 saat önce hatırlatılır 🔔`,
             },
             {
               ref: navRef, title: 'Ana sayfa ve ayarlar',
