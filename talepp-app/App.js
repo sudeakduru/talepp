@@ -19,6 +19,7 @@ import { registerPush, clearPush, onPushOpen } from './push';
 import { purchasesEnabled, initPurchases, onPlanChange, getPackages, buy, restore, logOutPurchases } from './purchases';
 import { addToCalendar, syncCalendar } from './calendar';
 import { scheduleReminders, syncReminders, clearReminders, testReminder } from './reminders';
+import { scheduleEngage } from './engage';
 import { APP_STORE_URL, TERMS_URL, PRIVACY_URL, SUPPORT_EMAIL } from './config';
 
 // ─────────────────────────────────────────────────────────────
@@ -1406,6 +1407,84 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act, group, on
   return <Sheet visible={visible} onClose={onClose} colors={colors}>{body()}</Sheet>;
 }
 
+// Cevap vermeyenlere tekrar bildirim. Az önce hatırlatıldıysa kapalı durur ve ne zaman açılacağını yazar.
+function NudgeButton({ rows, onPress, style }) {
+  const waiting = rows.filter(nudgeable);
+  if (!waiting.length) return null;
+  const ready = waiting.filter(canNudge);
+  if (!ready.length) {
+    const mins = Math.max(1, Math.ceil((Math.min(...waiting.map(x => x.nudgedAt + NUDGE_GAP)) - Date.now()) / 60000));
+    return <ChromeButton disabled title={`🔔 Hatırlatıldı · ${mins >= 60 ? `${Math.ceil(mins / 60)} sa` : `${mins} dk`} sonra tekrar`} style={style} />;
+  }
+  return (
+    <ChromeButton
+      hot={rows.length > 1} style={style} onPress={onPress}
+      title={rows.length > 1 ? `🔔 Bekleyenlere hatırlat (${ready.length})` : '🔔 Tekrar hatırlat'}
+    />
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Grup talebi: kim onayladı, kim reddetti, kim bekliyor. Bir kişiye dokununca o kişinin talebi açılır.
+// ─────────────────────────────────────────────────────────────
+function GroupSheet({ visible, onClose, rows, data, viewer, colors, onOpen, onNudge }) {
+  const member = id => data.members.find(m => m.id === id);
+  const nameOf = id => (member(id) || { name: 'Eski üye' }).name;
+  const body = () => {
+    if (!rows || !rows.length) return null;
+    const r = rows[0];
+    const cat = data.line.cats.find(c => c.id === r.catId);
+    const t = tallyOf(rows);
+    const st = tallySticker(t);
+    const isFrom = r.from === viewer.id;
+    const isTo = rows.some(x => x.to === viewer.id);
+    return (
+      <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Sticker text={`${cat ? cat.e : '✨'} ${trUpper(cat ? cat.t : 'genel')}`} rotate="-3deg" />
+          <Sticker text={st.t} bg={st.bg} rotate="4deg" />
+        </View>
+        <Text style={styles.detailTitle}>{r.title}</Text>
+        <Text style={styles.detailMeta}>{nameOf(r.from)} → {rows.length} kişi · {timeAgo(r.createdAt)}</Text>
+
+        <Glass style={{ marginTop: 16, alignItems: 'center' }}>
+          <HoloText style={styles.quotaBig}>{t.yes}/{t.total}</HoloText>
+          <Text style={styles.label}>Kişi onayladı</Text>
+          <Text style={[styles.cardTally, { textAlign: 'center' }]}>{tallyText(t)}</Text>
+        </Glass>
+
+        {whenText(r) ? <Glass style={{ marginTop: 16 }}><Text style={styles.whenTxt}>{whenText(r)}</Text></Glass> : null}
+        {r.desc ? <Glass style={{ marginTop: 16 }}><Text style={styles.desc}>{r.desc}</Text></Glass> : null}
+        {r.image ? <Image source={{ uri: r.image }} style={styles.detailImg} /> : null}
+
+        <Label style={{ marginTop: 22 }}>Kim ne dedi?</Label>
+        <Glass>
+          {rows.map((x, i) => {
+            const s = STATUS[x.status];
+            const m = member(x.to);
+            return (
+              <Pressable key={x.id} onPress={() => { tap(); onOpen(x.id); }} style={[styles.groupRow, i > 0 && styles.histBorder]}>
+                <Avatar name={nameOf(x.to)} index={Math.max(0, data.members.indexOf(m))} size={32} uri={m && m.avatar} />
+                <Text style={styles.groupName} numberOfLines={1}>{nameOf(x.to)}{x.to === viewer.id ? ' (sen)' : ''}</Text>
+                <Sticker small text={`${s.e} ${s.t}`} bg={s.bg} rotate="0deg" />
+                <Text style={styles.groupArrow}>›</Text>
+              </Pressable>
+            );
+          })}
+        </Glass>
+
+        {isFrom ? <NudgeButton rows={rows} onPress={() => onNudge(rows)} style={{ marginTop: 18 }} /> : null}
+        {isFrom || isTo ? (
+          <Text style={[styles.hint, { textAlign: 'center' }]}>
+            {isFrom ? 'Pazarlık yapana cevap vermek ya da birinden geri çekmek için o kişiye dokun ✦' : 'Cevabını vermek için adına dokun ✦'}
+          </Text>
+        ) : null}
+      </View>
+    );
+  };
+  return <Sheet visible={visible} onClose={onClose} colors={colors}>{body()}</Sheet>;
+}
+
 // ─────────────────────────────────────────────────────────────
 // TalApp+ (RevenueCat). Anahtar yokken: geliştirmede test aboneliği, yayında "yakında"
 // ─────────────────────────────────────────────────────────────
@@ -1639,6 +1718,7 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
   const [freshInvite, setFreshInvite] = useState(!!fresh);
   const [refreshing, setRefreshing] = useState(false);
   const [detailId, setDetailId] = useState(null);
+  const [groupId, setGroupId] = useState(null);
   const [paywallReason, setPaywallReason] = useState('browse');
   const [toastMsg, setToastMsg] = useState(null);
   const [burst, setBurst] = useState(0);
@@ -1730,6 +1810,15 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
       api.deleteRequest(r.id).catch(failed);
       closeThen(() => toast('🫥 Talep geri çekildi'));
     },
+    nudge: rows => {
+      const ready = rows.filter(canNudge);
+      if (!ready.length) return;
+      const ids = ready.map(x => x.id);
+      const at = Date.now();
+      setData(d => ({ ...d, requests: d.requests.map(x => (ids.includes(x.id) ? { ...x, nudgedAt: at } : x)) }));
+      api.nudge(ids).catch(failed);
+      closeThen(() => toast(`🔔 ${ready.length === 1 ? nameOf(ready[0].to) : `${ready.length} kişi`} tekrar dürtüldü`));
+    },
     report: r => Alert.alert('Neden şikayet ediyorsun? 🚩', 'Şikayetin 24 saat içinde incelenir.', [
       ...['Uygunsuz içerik', 'Taciz / zorbalık', 'spam'].map(reason => ({
         text: reason,
@@ -1751,21 +1840,21 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
   };
 
   // true dönerse form kapanır
-  const send = async ({ to, catId, title, desc, urgency, image, date, time, place }) => {
+  const send = async ({ tos, catId, title, desc, urgency, image, date, time, place }) => {
     if (left <= 0) { openPaywall(limitReason); return false; }
     try {
-      const r = await api.sendRequest(data.id, {
-        from: viewer.id, to, catId, title: title.trim(), desc: desc.trim(), urgency, date, time,
+      const rows = await api.sendRequest(data.id, {
+        from: viewer.id, tos, catId, title: title.trim(), desc: desc.trim(), urgency, date, time,
         place: place.trim() || null, day: todayKey(), history: [{ type: 'created', by: viewer.id, at: Date.now() }],
       }, image && image.base64);
       // görsel, sunucudan imzalı adres gelene kadar telefondaki dosyadan gösterilir
-      setData(d => ({ ...d, requests: [{ ...r, image: image ? image.uri : null }, ...d.requests] }));
+      setData(d => ({ ...d, requests: [...rows.map(r => ({ ...r, image: image ? image.uri : null })), ...d.requests] }));
     } catch (e) {
       oops();
       return false;
     }
     setTab('out');
-    closeThen(() => { success(); toast(`🚀 Talep fırlatıldı · ${nameOf(to)} bildirim aldı 🔔`); });
+    closeThen(() => { success(); toast(`🚀 Talep fırlatıldı · ${tos.length > 1 ? `${tos.length} kişi` : nameOf(tos[0])} bildirim aldı 🔔`); });
     return true;
   };
 
@@ -1826,11 +1915,23 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
     { e: isOwner ? '🗑️' : '👋', t: isOwner ? 'Hattı sil' : 'Hattan ayrıl', danger: true, onPress: () => closeThen(leave) },
   ];
 
-  const list = data.requests
-    .filter(r => (tab === 'in' ? isIncoming(r, viewer.id) : tab === 'out' ? isOutgoing(r, viewer.id) : true))
-    .sort((a, b) => b.createdAt - a.createdAt);
+  // Grup talebi "giden"de (atan için) ve "tüm hat"ta tek kart olur. "Gelen"de her satır tek tek durur,
+  // çünkü herkes kendi cevabını verir (pazarlık gelince talebi atan da o kişiye ayrıca cevap verir).
+  const groupRows = g => (g ? data.requests.filter(x => x.group === g) : []);
+  const list = [];
+  const seenGroups = new Set();
+  [...data.requests].sort((a, b) => b.createdAt - a.createdAt).forEach(r => {
+    if (r.group && (tab === 'all' || (tab === 'out' && r.from === viewer.id))) {
+      if (!seenGroups.has(r.group)) { seenGroups.add(r.group); list.push({ key: r.group, r, rows: groupRows(r.group) }); }
+      return;
+    }
+    if (tab === 'in' ? isIncoming(r, viewer.id) : tab === 'out' ? isOutgoing(r, viewer.id) : true) list.push({ key: r.id, r });
+  });
   const inPending = data.requests.filter(r => myTurn(r, viewer.id)).length;
   const detail = data.requests.find(r => r.id === detailId);
+  const detailGroup = groupRows(detail && detail.group);
+  const openGroup = g => { setGroupId(g); setSheet('group'); };
+  const openRow = id => closeThen(() => { setDetailId(id); setSheet('detail'); });
 
   const EMPTY = {
     in: ['📭', 'Gelen kutun bomboş', 'Biri sana talep atınca burada parlayacak ✦'],
@@ -1925,12 +2026,14 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
             <Text style={styles.emptyTitle}>{EMPTY[1]}</Text>
             <Text style={styles.emptySub}>{EMPTY[2]}</Text>
           </Glass>
-        ) : list.map(r => (
+        ) : list.map(({ key, r, rows }) => (
           <RequestCard
-            key={r.id} r={r}
+            key={key} r={r}
             cat={data.line.cats.find(c => c.id === r.catId)}
-            fromName={nameOf(r.from)} toName={nameOf(r.to)}
-            onPress={() => { setDetailId(r.id); setSheet('detail'); }}
+            fromName={nameOf(r.from)} toName={rows ? `${rows.length} kişi` : nameOf(r.to)}
+            tally={rows ? tallyOf(rows) : null}
+            note={!rows && r.group ? `👥 Grup talebi · ${tallyText(tallyOf(groupRows(r.group)))}` : null}
+            onPress={() => (rows ? openGroup(r.group) : (setDetailId(r.id), setSheet('detail')))}
           />
         ))}
       </ScrollView>
@@ -1956,7 +2059,14 @@ function Home({ data, setData, store, onHome, onPlan, reload, fresh, openReq, on
       <Confetti burst={burst} />
 
       <NewRequestSheet visible={sheet === 'new'} onClose={() => setSheet(null)} data={data} viewer={viewer} colors={colors} onSend={send} onAddCat={addCat} left={left} />
-      <DetailSheet visible={sheet === 'detail'} onClose={() => setSheet(null)} r={detail} data={data} viewer={viewer} colors={colors} act={act} />
+      <DetailSheet
+        visible={sheet === 'detail'} onClose={() => setSheet(null)} r={detail} data={data} viewer={viewer} colors={colors} act={act}
+        group={detailGroup} onGroup={() => closeThen(() => openGroup(detail.group))}
+      />
+      <GroupSheet
+        visible={sheet === 'group'} onClose={() => setSheet(null)} rows={groupRows(groupId)} data={data} viewer={viewer} colors={colors}
+        onOpen={openRow} onNudge={act.nudge}
+      />
       <PaywallSheet visible={sheet === 'paywall'} onClose={() => setSheet(null)} reason={paywallReason} plan={plan} colors={colors} onPlan={planChanged} />
       <InviteSheet
         visible={sheet === 'invite'} onClose={() => { setSheet(null); setFreshInvite(false); }}
@@ -2206,7 +2316,8 @@ export default function App() {
     // başka hesabın telefondaki kopyası görünmesin
     setStore(s => (s.userId === userId ? s : { ...EMPTY_STORE, userId }));
     reload();
-    registerPush();
+    // izin alınınca iki günde bir "bir talep aç" bildirimleri de kurulur
+    registerPush().then(scheduleEngage);
 
     let offPlan = () => {};
     initPurchases(userId).then(k => {
@@ -2590,6 +2701,10 @@ const styles = StyleSheet.create({
   cardTitle: { fontFamily: F.bold, fontSize: 15, color: C.ink, marginTop: 3, lineHeight: 20 },
   cardMeta: { fontSize: 12, fontWeight: '600', color: C.inkSoft, marginTop: 4 },
   cardTally: { fontFamily: F.bold, fontSize: 12, color: C.ink, marginTop: 4 },
+  groupNote: { marginTop: 14, flexDirection: 'row', alignItems: 'center' },
+  groupRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  groupName: { flex: 1, marginLeft: 10, fontFamily: F.bold, fontSize: 14, color: C.ink },
+  groupArrow: { fontSize: 20, color: C.inkSoft, marginLeft: 8 },
   cardWhen: { fontSize: 12, fontWeight: '700', color: C.ink, marginTop: 4 },
   cardThumb: { width: 54, height: 54, borderRadius: 14, marginLeft: 10, borderWidth: 2, borderColor: '#fff' },
   cardSticker: { position: 'absolute', top: -10, right: 14 },
