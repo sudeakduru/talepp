@@ -432,8 +432,15 @@ const AUTH_ERRORS = {
 // Apple ile giriş (yalnızca iOS'ta görünür). Apple adı yalnızca ilk girişte verir; profil ekranında hazır doldurulur.
 const APPLE_NAME_KEY = 'talepp:appleName';
 
-// or: üstüne "ya da" yazar (Apple girişi olmayan telefonda o da görünmez)
-function AppleButton({ or }) {
+// type: continue (karşılama) | signin (giriş) | signup (kayıt). Formlarda en üstte durur, altına "ya da e-postayla" yazar
+// (Apple girişi olmayan telefonda o yazı da görünmez).
+const APPLE_TYPES = {
+  continue: AppleAuthentication.AppleAuthenticationButtonType.CONTINUE,
+  signin: AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN,
+  signup: AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP,
+};
+
+function AppleButton({ type = 'continue', or }) {
   const [ok, setOk] = useState(false);
   useEffect(() => { AppleAuthentication.isAvailableAsync().then(setOk).catch(() => {}); }, []);
   if (!ok) return null;
@@ -454,12 +461,12 @@ function AppleButton({ or }) {
   };
   return (
     <>
-      {or ? <Text style={styles.orTxt}>Ya da</Text> : null}
       <AppleAuthentication.AppleAuthenticationButton
-        buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+        buttonType={APPLE_TYPES[type]}
         buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
         cornerRadius={26} style={[styles.appleBtn, or && { marginTop: 0 }]} onPress={go}
       />
+      {or ? <Text style={styles.orTxt}>Ya da e-postayla</Text> : null}
     </>
   );
 }
@@ -575,7 +582,6 @@ function AuthScreen() {
                 title={busy ? 'Bekle bi sn... ✦' : login ? 'Giriş yap ✦' : 'Kaydol ✦'}
                 onPress={submit}
               />
-              <AppleButton or />
               <Pressable onPress={() => go(login ? 'signup' : 'login')} hitSlop={10}>
                 <Text style={styles.restore}>{login ? 'Hesabın yok mu? Kaydol' : 'Zaten hesabın var mı? Giriş yap'}</Text>
               </Pressable>

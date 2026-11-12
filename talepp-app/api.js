@@ -39,8 +39,8 @@ export async function fetchAll(userId) {
   }
 
   return {
-    // profil yoksa (Apple ile ilk giriş ya da Yumi hesabı) ad ve yaş istenir
-    hasProfile: !!prof.data,
+    // profil yoksa ya da yaşı boşsa (Apple ile ilk giriş, Yumi hesabı) ad ve yaş istenir
+    hasProfile: !!(prof.data && prof.data.age),
     name: (prof.data && prof.data.name) || '',
     tester: !!(prof.data && prof.data.tester),
     freeUsed: !!(prof.data && prof.data.free_used),

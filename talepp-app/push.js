@@ -15,6 +15,13 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Her cihazın kendi adresi var; hesap telefonda da iPad'de de açıksa ikisine de gider (schema-5.sql)
+async function deviceToken() {
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  const { data } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+  return data;
+}
+
 export async function registerPush() {
   try {
     if (Platform.OS === 'android') {
@@ -26,20 +33,19 @@ export async function registerPush() {
     let { granted } = await Notifications.getPermissionsAsync();
     if (!granted) ({ granted } = await Notifications.requestPermissionsAsync());
     if (!granted) return;
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-    const { data } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
-    await supabase.rpc('talepp_save_push_token', { token: data });
+    await supabase.rpc('talepp_save_push_token', { token: await deviceToken() });
   } catch (e) {
     // Expo Go'da ya da EAS projectId yokken adres alınamayabilir; uygulama bildirimsiz çalışır
   }
 }
 
-// Çıkış yaparken: bu telefona artık o hesabın bildirimleri gelmesin
+// Çıkış yaparken: yalnızca bu cihaza artık o hesabın bildirimleri gelmesin
 export async function clearPush() {
   try {
-    await supabase.rpc('talepp_save_push_token', { token: null });
+    const { granted } = await Notifications.getPermissionsAsync();
+    if (granted) await supabase.rpc('talepp_remove_push_token', { p_token: await deviceToken() });
   } catch (e) {
-    // bağlantı yoksa sorun değil; telefon başka hesapla girince adres zaten taşınır
+    // bağlantı yoksa sorun değil; cihaz başka hesapla girince adres zaten taşınır
   }
 }
 
