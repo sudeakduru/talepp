@@ -104,6 +104,30 @@ const isIncoming = (r, me) => (r.status === 'nego' ? r.from : r.to) === me;
 const isOutgoing = (r, me) => (r.status === 'nego' ? r.to : r.from) === me;
 const myTurn = (r, me) => OPEN.includes(r.status) && isIncoming(r, me);
 
+// Grup talebi: kaç kişi onayladı, reddetti, pazarlıkta, bekliyor
+function tallyOf(rows) {
+  const n = f => rows.filter(f).length;
+  return {
+    total: rows.length,
+    yes: n(x => x.status === 'approved'),
+    no: n(x => x.status === 'rejected'),
+    nego: n(x => x.status === 'nego'),
+    wait: n(x => x.status === 'pending' || x.status === 'appeal'),
+  };
+}
+const tallyText = t => [
+  t.yes && `💖 ${t.yes} onayladı`, t.no && `💔 ${t.no} reddetti`, t.nego && `🤝 ${t.nego} pazarlıkta`, t.wait && `⏳ ${t.wait} bekliyor`,
+].filter(Boolean).join(' · ');
+const tallySticker = t => ({
+  t: `👥 ${t.yes}/${t.total} ONAYLADI`,
+  bg: t.wait + t.nego ? STATUS.pending.bg : t.yes ? STATUS.approved.bg : STATUS.rejected.bg,
+});
+
+// Cevap vermeyene (beklemede, itirazda) tekrar bildirim: aynı kişiye 3 saatte bir (sunucu da böyle sınırlar)
+const NUDGE_GAP = 3 * 60 * 60 * 1000;
+const nudgeable = r => r.status === 'pending' || r.status === 'appeal';
+const canNudge = r => nudgeable(r) && (!r.nudgedAt || Date.now() - r.nudgedAt >= NUDGE_GAP);
+
 const HIST = {
   created: '🚀 talebi fırlattı',
   approved: '💖 onayladı',
@@ -190,9 +214,10 @@ function weekStart() {
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   return d.getTime();
 }
+// birden fazla kişiye giden grup talebi tek hak sayılır
 const sentThisWeek = (requests, id) => {
   const w = weekStart();
-  return requests.filter(r => r.from === id && r.createdAt >= w).length;
+  return new Set(requests.filter(r => r.from === id && r.createdAt >= w).map(r => r.group || r.id)).size;
 };
 // "ben" bütün hatlarda aynı kişi: haftalık sayım tüm hatlardan toplanır
 const myUsedWeek = store => store.lines.reduce((n, l) => n + sentThisWeek(l.requests, l.meId), 0);
@@ -972,8 +997,9 @@ function Tour({ steps, onFinish }) {
 // ─────────────────────────────────────────────────────────────
 // Talep kartı
 // ─────────────────────────────────────────────────────────────
-function RequestCard({ r, cat, fromName, toName, onPress }) {
-  const st = STATUS[r.status];
+// tally: grup kartı (durum yerine "1/3 onayladı"); note: kartın altına ek satır
+function RequestCard({ r, cat, fromName, toName, onPress, tally, note }) {
+  const st = tally ? tallySticker(tally) : { t: `${STATUS[r.status].e} ${STATUS[r.status].t}`, bg: STATUS[r.status].bg };
   const urgent = r.urgency === 'acil' && OPEN.includes(r.status);
   return (
     <Pressable onPress={() => { tap(); onPress(); }} style={({ pressed }) => [{ marginTop: 18, transform: [{ scale: pressed ? 0.98 : 1 }] }]}>
@@ -984,10 +1010,11 @@ function RequestCard({ r, cat, fromName, toName, onPress }) {
           <Text style={styles.cardTitle} numberOfLines={2}>{r.title}</Text>
           {whenText(r) ? <Text style={styles.cardWhen} numberOfLines={1}>{whenText(r)}</Text> : null}
           <Text style={styles.cardMeta}>{fromName} → {toName} · {timeAgo(r.createdAt)}</Text>
+          {tally || note ? <Text style={styles.cardTally}>{tally ? tallyText(tally) : note}</Text> : null}
         </View>
         {r.image ? <Image source={{ uri: r.image }} style={styles.cardThumb} /> : null}
       </Glass>
-      <Sticker text={`${st.e} ${st.t}`} bg={st.bg} rotate={r.id.charCodeAt(0) % 2 ? '-5deg' : '4deg'} style={styles.cardSticker} />
+      <Sticker text={st.t} bg={st.bg} rotate={r.id.charCodeAt(0) % 2 ? '-5deg' : '4deg'} style={styles.cardSticker} />
     </Pressable>
   );
 }
@@ -1048,7 +1075,7 @@ function Calendar({ value, onChange }) {
 // ─────────────────────────────────────────────────────────────
 function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAddCat, left }) {
   const others = data.members.filter(m => m.id !== viewer.id);
-  const [to, setTo] = useState(null);
+  const [tos, setTos] = useState([]); // birden fazla kişi seçilirse grup talebi olur
   const [catId, setCatId] = useState(null);
   const [newCat, setNewCat] = useState(null); // null: kutu kapalı
   const [newEmoji, setNewEmoji] = useState('✨');
@@ -1065,7 +1092,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
 
   useEffect(() => {
     if (!visible) return;
-    setTo(others[0] ? others[0].id : null);
+    setTos(others.map(m => m.id));
     setCatId(data.line.cats[0] ? data.line.cats[0].id : null);
     setNewCat(null); setNewEmoji('✨'); setTitle(''); setDesc(''); setUrgency('onemli'); setImage(null);
     setDate(null); setCalOpen(false); setTime(''); setPlace(''); setBusy(false);
@@ -1073,7 +1100,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
 
   const submit = async () => {
     setBusy(true);
-    const ok = await onSend({ to, catId, title, desc, urgency, image, date, time: time || null, place });
+    const ok = await onSend({ tos, catId, title, desc, urgency, image, date, time: time || null, place });
     if (!ok) setBusy(false);
   };
 
@@ -1102,13 +1129,28 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
 
       <Label style={{ marginTop: 20 }}>Kime?</Label>
       <View style={styles.wrap}>
-        {others.map(m => (
-          <Pressable key={m.id} onPress={() => { tap(); setTo(m.id); }} style={[styles.toChip, to === m.id && styles.chipOn]}>
-            <Avatar name={m.name} index={data.members.findIndex(x => x.id === m.id)} size={26} uri={m.avatar} />
-            <Text style={[styles.chipTxt, { marginLeft: 8 }, to === m.id && styles.chipTxtOn]}>{m.name}</Text>
-          </Pressable>
-        ))}
+        {others.length > 1 ? (
+          <Chip
+            label="👥 Herkes" on={tos.length === others.length}
+            onPress={() => setTos(tos.length === others.length ? [] : others.map(m => m.id))}
+          />
+        ) : null}
+        {others.map(m => {
+          const on = tos.includes(m.id);
+          return (
+            <Pressable
+              key={m.id} style={[styles.toChip, on && styles.chipOn]}
+              onPress={() => { tap(); setTos(t => (on ? t.filter(x => x !== m.id) : [...t, m.id])); }}
+            >
+              <Avatar name={m.name} index={data.members.findIndex(x => x.id === m.id)} size={26} uri={m.avatar} />
+              <Text style={[styles.chipTxt, { marginLeft: 8 }, on && styles.chipTxtOn]}>{m.name}</Text>
+            </Pressable>
+          );
+        })}
       </View>
+      {tos.length > 1 ? (
+        <Text style={styles.hint}>{tos.length} kişiye gider, herkes ayrı cevap verir 👥 Kimin onayladığını kartta görürsün. Tek hak sayılır ✦</Text>
+      ) : null}
 
       <Label style={{ marginTop: 20 }}>Başlık</Label>
       <View style={styles.wrap}>
@@ -1182,7 +1224,7 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
       )}
 
       <ChromeButton
-        hot big title={busy ? 'Fırlatılıyor... 🚀' : 'Talebi fırlat 🚀'} disabled={busy || !title.trim() || !to || timeBad}
+        hot big title={busy ? 'Fırlatılıyor... 🚀' : 'Talebi fırlat 🚀'} disabled={busy || !title.trim() || !tos.length || timeBad}
         style={{ marginTop: 26 }} onPress={submit}
       />
     </Sheet>
@@ -1192,7 +1234,8 @@ function NewRequestSheet({ visible, onClose, data, viewer, colors, onSend, onAdd
 // ─────────────────────────────────────────────────────────────
 // Talep detayı: onayla / reddet / pazarlık / itiraz
 // ─────────────────────────────────────────────────────────────
-function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
+// group: talep bir grup talebiyse gruptaki bütün satırlar; onGroup herkesin cevabını gösteren sayfayı açar
+function DetailSheet({ visible, onClose, r, data, viewer, colors, act, group, onGroup }) {
   const [mode, setMode] = useState(null);
   const [text, setText] = useState('');
   useEffect(() => { if (visible) { setMode(null); setText(''); } }, [visible, r && r.id]);
@@ -1259,7 +1302,12 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
         </View>
       );
     } else if (isFrom && r.status === 'pending') {
-      actions = <ChromeButton title="Talebi geri çek 🫥" onPress={() => act.withdraw(r)} />;
+      actions = (
+        <View>
+          <NudgeButton rows={[r]} onPress={() => act.nudge([r])} />
+          <ChromeButton title="Talebi geri çek 🫥" onPress={() => act.withdraw(r)} style={{ marginTop: 10 }} />
+        </View>
+      );
     } else if (isFrom && r.status === 'rejected' && !appealed) {
       actions = mode === 'appeal' ? (
         <Glass>
@@ -1277,7 +1325,12 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
         <ChromeButton hot title="İtiraz et ⚖️ (1 hak)" onPress={() => { setText(''); setMode('appeal'); }} />
       );
     } else if (isFrom && r.status === 'appeal') {
-      actions = <Text style={styles.info}>İtirazın masada ⚖️ Karar bekleniyor...</Text>;
+      actions = (
+        <View>
+          <Text style={styles.info}>İtirazın masada ⚖️ Karar bekleniyor...</Text>
+          <NudgeButton rows={[r]} onPress={() => act.nudge([r])} style={{ marginTop: 12 }} />
+        </View>
+      );
     } else if (!isTo && !isFrom) {
       actions = <Text style={styles.info}>Bu talep sana ait değil ama izlemek serbest 🍿</Text>;
     }
@@ -1290,6 +1343,18 @@ function DetailSheet({ visible, onClose, r, data, viewer, colors, act }) {
         </View>
         <Text style={styles.detailTitle}>{r.title}</Text>
         <Text style={styles.detailMeta}>{nameOf(r.from)} → {nameOf(r.to)} · {timeAgo(r.createdAt)} · {urg ? urg.t : ''}</Text>
+
+        {group && group.length > 1 ? (
+          <Pressable onPress={() => { tap(); onGroup(); }}>
+            <Glass style={styles.groupNote}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>👥 Grup talebi · {group.length} kişiye gitti</Text>
+                <Text style={styles.cardTally}>{tallyText(tallyOf(group))}</Text>
+              </View>
+              <Text style={styles.aloneBtn}>Herkes ›</Text>
+            </Glass>
+          </Pressable>
+        ) : null}
 
         {r.status === 'approved' ? (
           <LinearGradient colors={['#9DFFD5', '#B5DEFF', '#FFB5E8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.approvedBanner}>
@@ -2524,6 +2589,7 @@ const styles = StyleSheet.create({
   cardCat: { fontFamily: F.med, fontSize: 9, color: C.inkSoft, letterSpacing: 1 },
   cardTitle: { fontFamily: F.bold, fontSize: 15, color: C.ink, marginTop: 3, lineHeight: 20 },
   cardMeta: { fontSize: 12, fontWeight: '600', color: C.inkSoft, marginTop: 4 },
+  cardTally: { fontFamily: F.bold, fontSize: 12, color: C.ink, marginTop: 4 },
   cardWhen: { fontSize: 12, fontWeight: '700', color: C.ink, marginTop: 4 },
   cardThumb: { width: 54, height: 54, borderRadius: 14, marginLeft: 10, borderWidth: 2, borderColor: '#fff' },
   cardSticker: { position: 'absolute', top: -10, right: 14 },
