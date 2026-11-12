@@ -10,6 +10,14 @@ const toReq = (r, urls = {}) => ({
   image: r.image_path ? urls[r.image_path] || null : null, imagePath: r.image_path,
   date: r.date, time: r.time, place: r.place, status: r.status, history: r.history, day: r.day,
   createdAt: new Date(r.created_at).getTime(),
+  // grup talebi: aynı group'u taşıyan satırlar tek kart (schema-6.sql)
+  group: r.group_id || null, nudgedAt: r.nudged_at ? new Date(r.nudged_at).getTime() : null,
+});
+
+// Grup kimliği; güvenlik için değil, satırları bir araya toplamak için
+const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+  const n = (Math.random() * 16) | 0;
+  return (c === 'x' ? n : (n & 3) | 8).toString(16);
 });
 
 // Kullanıcının bütün hatları, üyeleri ve talepleri tek seferde
@@ -140,15 +148,24 @@ export async function removeAvatarFiles(userId) {
   try { await clearAvatarFiles(userId); } catch (e) {}
 }
 
-// r: { from, to, catId, title, desc, urgency, date, time, place, day, history }; imageB64 varsa önce görsel yüklenir
+// r: { from, tos, catId, title, desc, urgency, date, time, place, day, history }; imageB64 varsa önce görsel yüklenir.
+// Birden fazla alıcıda her birine ayrı satır gider, hepsi aynı group_id'yi taşır. Satırları döner.
 export async function sendRequest(lineId, r, imageB64) {
   const imagePath = imageB64 ? await uploadImage(lineId, imageB64) : null;
-  const { data, error } = await supabase.from('talepp_requests').insert({
-    line_id: lineId, from_id: r.from, to_id: r.to, cat_id: r.catId, title: r.title, descr: r.desc, urgency: r.urgency,
-    image_path: imagePath, date: r.date, time: r.time, place: r.place, day: r.day, history: r.history,
-  }).select().single();
+  const group = r.tos.length > 1 ? { group_id: uuid() } : {};
+  const { data, error } = await supabase.from('talepp_requests').insert(r.tos.map(to => ({
+    line_id: lineId, from_id: r.from, to_id: to, cat_id: r.catId, title: r.title, descr: r.desc, urgency: r.urgency,
+    image_path: imagePath, date: r.date, time: r.time, place: r.place, day: r.day, history: r.history, ...group,
+  }))).select();
   if (error) throw error;
-  return toReq(data);
+  return data.map(x => toReq(x));
+}
+
+// Cevap bekleyenlere tekrar bildirim; kaç kişiye gittiğini döner
+export async function nudge(ids) {
+  const { data, error } = await supabase.rpc('talepp_nudge', { p_ids: ids });
+  if (error) throw error;
+  return data || 0;
 }
 
 export async function updateRequest(id, { status, history }) {

@@ -8,6 +8,9 @@ const KEY = 'talepp:cal';
 let added = null; // { talepId: etkinlikId }
 const busy = new Set(); // aynı talep iki yerden aynı anda eklenmesin
 
+// grup talebi takvime bir kez girer (birden çok kişi onaylasa da)
+const keyOf = r => r.group || r.id;
+
 const pad = n => String(n).padStart(2, '0');
 const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 
@@ -47,11 +50,12 @@ export const calendarable = r => !!(r && r.status === 'approved' && r.date && r.
 
 // 'added' | 'skip' | 'denied' | 'error'
 export async function addToCalendar(r, { line, cat } = {}) {
-  if (!calendarable(r) || busy.has(r.id)) return 'skip';
-  busy.add(r.id);
+  const key = keyOf(r);
+  if (!calendarable(r) || busy.has(key)) return 'skip';
+  busy.add(key);
   try {
     const map = await loadAdded();
-    if (map[r.id]) return 'skip';
+    if (map[key]) return 'skip';
     const perm = await Calendar.getCalendarPermissionsAsync();
     let ok = perm.granted;
     if (!ok && perm.canAskAgain) ok = (await Calendar.requestCalendarPermissionsAsync()).granted;
@@ -69,13 +73,13 @@ export async function addToCalendar(r, { line, cat } = {}) {
       notes: [r.desc, line && `💌 TalApp · ${line}`].filter(Boolean).join('\n\n'),
       alarms: allDay ? [] : [{ relativeOffset: -60 }],
     });
-    map[r.id] = id;
+    map[key] = id;
     await AsyncStorage.setItem(KEY, JSON.stringify(map));
     return 'added';
   } catch (e) {
     return 'error';
   } finally {
-    busy.delete(r.id);
+    busy.delete(key);
   }
 }
 

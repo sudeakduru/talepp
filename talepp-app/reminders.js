@@ -6,8 +6,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const KEY = 'talepp:remind';
 const HOUR = 60 * 60 * 1000;
 const NO_TIME_HOUR = 9; // saati yazılmamış talep sabah 9'da sayılır: hatırlatmalar önceki gün 09:00 ve 21:00
-let planned = null; // { talepId: [bildirimId] }
+let planned = null; // { talepId ya da grupId: [bildirimId] }
 const busy = new Set();
+// grup talebi bir kez hatırlatılır (birden çok kişi onaylasa da)
+const keyOf = r => r.group || r.id;
 
 async function load() {
   if (!planned) {
@@ -29,11 +31,13 @@ function startOf(r) {
 
 // lineId: bildirime dokununca açılacak hat
 export async function scheduleReminders(r, { lineId, line, cat } = {}) {
-  if (!r || r.status !== 'approved' || !r.date || busy.has(r.id)) return;
-  busy.add(r.id);
+  if (!r || r.status !== 'approved' || !r.date) return;
+  const key = keyOf(r);
+  if (busy.has(key)) return;
+  busy.add(key);
   try {
     const map = await load();
-    if (map[r.id]) return;
+    if (map[key]) return;
     const { granted } = await Notifications.getPermissionsAsync();
     if (!granted) return;
     const start = startOf(r).getTime();
@@ -48,12 +52,12 @@ export async function scheduleReminders(r, { lineId, line, cat } = {}) {
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(at) },
       }));
     }
-    map[r.id] = ids; // hepsi geçmişte kaldıysa da boş liste: bir daha denenmez
+    map[key] = ids; // hepsi geçmişte kaldıysa da boş liste: bir daha denenmez
     await save();
   } catch (e) {
     // izin yoksa ya da kurulamadıysa hatırlatmasız devam
   } finally {
-    busy.delete(r.id);
+    busy.delete(key);
   }
 }
 
@@ -63,8 +67,8 @@ export async function syncReminders(lines) {
   const seen = new Set();
   for (const l of lines) {
     for (const r of l.requests) {
-      seen.add(r.id);
       if (r.from !== l.meId && r.to !== l.meId) continue;
+      seen.add(keyOf(r));
       await scheduleReminders(r, { lineId: l.id, line: l.line.name, cat: l.line.cats.find(c => c.id === r.catId) });
     }
   }
