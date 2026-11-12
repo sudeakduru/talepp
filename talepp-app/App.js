@@ -2223,11 +2223,34 @@ export default function App() {
     .then(() => { setStore(s => ({ ...s, avatar: null })); reload(); })
     .catch(oops);
 
+  // E-postayla açılmış hesaba Apple'ı ekler: sonra Apple ile girince de bu hesaba gelir.
+  // (Apple e-postayı gizleyebildiği için iki hesabı kendiliğinden eşleyemeyiz.)
+  const appleLinked = (user.identities || []).some(i => i.provider === 'apple');
+  const linkApple = async () => {
+    try {
+      const cred = await AppleAuthentication.signInAsync({
+        requestedScopes: [AppleAuthentication.AppleAuthenticationScope.EMAIL],
+      });
+      const { error } = await supabase.auth.linkIdentity({ provider: 'apple', token: cred.identityToken });
+      if (error) throw error;
+      Alert.alert('Apple bağlandı 🍏', 'Artık Apple ile girince de bu hesaba gelirsin.');
+    } catch (e) {
+      if (e && e.code === 'ERR_REQUEST_CANCELED') return;
+      Alert.alert(
+        'Apple bağlanamadı 😵',
+        e && e.code === 'identity_already_exists'
+          ? 'Bu Apple hesabıyla açılmış başka bir TalApp hesabı var. Önce onu silmen gerekiyor: Apple ile gir → Hesabımı sil, sonra e-postayla girip tekrar bağla.'
+          : 'Biraz sonra tekrar dener misin?',
+      );
+    }
+  };
+
   // Hesap menüsü bir sayfa; açtığı şey (galeri, uyarı) sayfa kapanınca açılır
   const closeMenuThen = fn => { setMenu(false); setTimeout(fn, 450); };
   const accountItems = [
     { e: '📸', t: store.avatar ? 'Profil fotoğrafını değiştir' : 'Profil fotoğrafı ekle', onPress: () => closeMenuThen(pickAvatar) },
     ...(store.avatar ? [{ e: '🫥', t: 'Fotoğrafı kaldır', onPress: () => closeMenuThen(removeAvatar) }] : []),
+    ...(Platform.OS === 'ios' && !appleLinked ? [{ e: '🍏', t: 'Apple ile girişi bağla', onPress: () => closeMenuThen(linkApple) }] : []),
     { e: '🧭', t: 'Nasıl kullanılır?', onPress: () => closeMenuThen(() => AsyncStorage.removeItem(TOUR_KEY).catch(() => {}).then(() => setTourRun(n => n + 1))) },
     // App Store sürümünde görünmez
     ...(__DEV__ ? [{
