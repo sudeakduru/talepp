@@ -48,6 +48,11 @@ const THEMES = {
   cyber: { name: 'Siber Lila', colors: ['#C9A7FF', '#9FE8FF', '#C4FFEA'] },
   peach: { name: 'Şeftali', colors: ['#FFD1B5', '#FFB5D8', '#FFF0A8'] },
   aqua: { name: 'Buz Prenses', colors: ['#B5FFF1', '#B5D8FF', '#E2C6FF'] },
+  // erkeksi tonlar: yazılar koyu kaldığı için renkler açık tutuldu
+  ocean: { name: 'Okyanus', colors: ['#9FD0FF', '#7FB2F0', '#A8E6E0'] },
+  forest: { name: 'Orman', colors: ['#B9E4C0', '#8CCBA8', '#D6EDB8'] },
+  steel: { name: 'Çelik', colors: ['#CBD5E1', '#A7B6CA', '#E2E8F0'] },
+  night: { name: 'Gece', colors: ['#A9B4E6', '#8E9DD6', '#B7C9F2'] },
 };
 
 const EMOJIS = ['💖', '🦋', '🍒', '👑', '🌙', '🧸', '🔥', '🫧', '🍓', '💅', '🐱', '🌸'];
@@ -543,6 +548,7 @@ function AuthScreen() {
           </View>
 
           <View style={{ marginTop: 22 }}>
+              <AppleButton type={login ? 'signin' : 'signup'} or />
               {!login ? (
                 <>
                   <Label>Adın</Label>
@@ -836,7 +842,7 @@ function Onboarding({ onDone, onCancel, myName }) {
         onBack={() => setStep(1)} onNext={() => setStep(3)} nextTitle="Devam →" canNext={cats.some(c => c.on)}>
         <View style={styles.themeRow}>
           {Object.entries(THEMES).map(([k, th]) => (
-            <Pressable key={k} onPress={() => { tap(); setTheme(k); }} style={{ alignItems: 'center', flex: 1 }}>
+            <Pressable key={k} onPress={() => { tap(); setTheme(k); }} style={styles.themeCell}>
               <LinearGradient colors={th.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.swatch, theme === k && styles.swatchOn]}>
                 {theme === k ? <Text style={{ fontSize: 20 }}>✦</Text> : null}
               </LinearGradient>
@@ -2444,7 +2450,8 @@ const styles = StyleSheet.create({
   preview: { flexDirection: 'row', alignItems: 'center', marginTop: 24 },
   previewName: { fontFamily: F.black, fontSize: 18, color: C.ink, marginTop: 4 },
 
-  themeRow: { flexDirection: 'row', gap: 8 },
+  themeRow: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 14 },
+  themeCell: { width: '25%', alignItems: 'center' },
   swatch: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff' },
   swatchOn: { borderColor: C.ink, transform: [{ scale: 1.08 }] },
   swatchTxt: { fontFamily: F.med, fontSize: 10, color: C.ink, marginTop: 8, textAlign: 'center' },
